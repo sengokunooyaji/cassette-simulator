@@ -15,6 +15,7 @@ const CASSETTE = (() => {
       flutterHz: 6.8,    // capstan rotation
       azimuthMin: 15,    // head azimuth error (arc minutes)
       azDelay: 73e-6,    // resulting L/R time offset
+      revAzMin: 8,       // extra azimuth error on the reverse side of an auto-reverse head
       dolby: false,
       dbx: false,
       tapes: {
@@ -38,6 +39,7 @@ const CASSETTE = (() => {
       flutterHz: 10.5,
       azimuthMin: 2,
       azDelay: 10e-6,
+      revAzMin: 3,
       dolby: true,       // Dolby B / C / S
       dbx: true,
       tapes: {

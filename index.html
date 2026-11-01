@@ -7,7 +7,7 @@
 <title>カセットデッキ シミュレーター</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Share+Tech+Mono&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Share+Tech+Mono&family=IBM+Plex+Sans+JP:wght@400;500;700&family=Caveat:wght@600&family=Yomogi&display=swap">
 <style>
 /* Layout: deck faceplate. Transport strip on top, control panel left, fluorescent-display chart right.
    Deliberately single dark look (graphite faceplate + FL-tube cyan), set explicitly for every host theme. */
@@ -94,6 +94,45 @@ select { font: inherit; font-size: 13px; color: var(--ink); background: var(--ch
 .meter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 900px; width: 100%; margin: 0 auto; }
 .meter-row canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; background: #0b0d0e; }
 
+/* cassette deck */
+.deck-sec { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 14px; display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 880px) { .deck-sec { grid-template-columns: minmax(0, 1fr); } }
+.cass-wrap { display: grid; gap: 8px; min-width: 0; }
+#cass { display: block; width: 100%; max-width: 100%; aspect-ratio: 1.58 / 1; border-radius: 6px; background: #0b0d0e; }
+.counter { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-mono); color: var(--fl); background: #0d1011; border: 1px solid var(--rule); border-radius: 3px; padding: 6px 12px; text-shadow: 0 0 6px rgba(95, 239, 208, 0.35); }
+.c-side { font-size: 22px; border: 1px solid var(--fl); border-radius: 2px; padding: 0 6px; line-height: 1.2; }
+.c-time { font-size: 26px; }
+.c-len { font-size: 14px; color: var(--muted); text-shadow: none; }
+.c-mode { margin-left: auto; font-size: 14px; letter-spacing: 0.12em; }
+.c-track { font-size: 13px; color: var(--muted); min-height: 1.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.deck-ctl { display: grid; gap: 12px; min-width: 0; }
+.tbtns { display: flex; flex-wrap: wrap; gap: 6px; }
+.tbtns button { font-family: var(--font-mono); font-size: 15px; min-width: 52px; min-height: 40px; padding: 6px 10px; background: var(--panel-2); }
+.tbtns button.active { border-color: var(--fl); color: var(--fl); }
+.tbtns .t-play { color: var(--fl); }
+.drow { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
+.drow > span:first-child { min-width: 5em; color: var(--muted); font-size: 13px; }
+.deck-msg { font-size: 12.5px; color: var(--muted); }
+#t-swap.armed { border-color: var(--rec); color: var(--rec); }
+.deck-msg.err { color: var(--amber); }
+.sides { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 560px) { .sides { grid-template-columns: minmax(0, 1fr); } }
+.side { display: grid; gap: 6px; min-width: 0; align-content: start; }
+.side-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.side-head b { font-family: var(--font-display); font-size: 16px; letter-spacing: 0.08em; }
+.side-head span { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); }
+.usebar { height: 4px; background: var(--chip); border-radius: 2px; overflow: hidden; }
+.usebar i { display: block; height: 100%; width: 0; background: var(--fl); }
+.tlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: 260px; overflow-y: auto; }
+.tlist li { display: grid; grid-template-columns: 1.6em minmax(0, 1fr) auto auto; gap: 6px; align-items: center; font-size: 12.5px; background: var(--panel-2); border: 1px solid var(--rule); border-radius: 3px; padding: 4px 6px; }
+.tlist li.now { border-color: var(--fl); }
+.tlist .n { font-family: var(--font-mono); color: var(--muted); }
+.tlist .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tlist .d { font-family: var(--font-mono); color: var(--muted); }
+.tlist .acts { display: flex; gap: 2px; }
+.tlist .acts button { font-size: 11.5px; padding: 2px 6px; min-width: 26px; }
+.tlist .empty { display: block; color: var(--muted); background: none; border-style: dashed; text-align: center; padding: 8px; }
+
 /* main */
 .main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
@@ -155,7 +194,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
 <div class="wrap">
   <header>
     <h1 class="mark">Cassette <span>Deck</span> Simulator<small>Compact Cassette Playback Model</small></h1>
-    <p>カセットテープ再生の周波数特性、ワウ・フラッター、テープヒス、飽和、ヘッドのアジマスずれをリアルタイムで再現します。普及モデルと高級モデルを切り替えて、原音と聴き比べられます。</p>
+    <p>手持ちの曲をカセットのA面・B面に収録して、テープの音で再生します。周波数特性、ワウ・フラッター、ヒス、飽和、ノイズリダクション、経年劣化まで再現し、原音と聴き比べられます。</p>
   </header>
 
   <section class="transport" aria-label="試聴">
@@ -171,18 +210,68 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
       <div class="seg" role="radiogroup" aria-label="音源">
         <label><input type="radio" name="src" id="src-pink" value="pink" checked><span>ピンクノイズ</span></label>
         <label><input type="radio" name="src" id="src-tone" value="tone"><span>3150Hz</span></label>
-        <label><input type="radio" name="src" id="src-file" value="file"><span>ファイル</span></label>
+        <label><input type="radio" name="src" id="src-file" value="tape"><span>カセット</span></label>
       </div>
-      <label class="filebtn">ファイルを選ぶ<input type="file" id="file" accept="audio/*"></label>
-      <span id="srcname">未選択（ドラッグ＆ドロップ可）</span>
-      <span class="seekwrap" id="seekwrap" hidden>
-        <input type="range" id="seek" min="0" max="1000" step="1" value="0" aria-label="再生位置">
-        <span class="time" id="time">0:00 / 0:00</span>
-      </span>
     </div>
     <div class="group">
       <label class="lbl" for="vol">Volume</label>
       <input type="range" id="vol" min="0" max="1" step="0.01" value="0.5">
+    </div>
+  </section>
+
+  <section class="deck-sec" aria-label="カセット">
+    <div class="cass-wrap">
+      <canvas id="cass" role="img" aria-label="カセットテープの窓。リールの巻き量と回転を表示"></canvas>
+      <div class="counter" aria-live="off">
+        <span class="c-side" id="c-side">A</span>
+        <span class="c-time" id="c-time">0:00</span>
+        <span class="c-len" id="c-len">/ 30:00</span>
+        <span class="c-mode" id="c-mode">STOP</span>
+      </div>
+      <div class="c-track" id="c-track">曲を追加すると、A面から順に収録します</div>
+    </div>
+    <div class="deck-ctl">
+      <div class="tbtns" role="group" aria-label="テープ操作">
+        <button type="button" id="t-prev" aria-label="前の曲の頭へ（頭出し）">|◀◀</button>
+        <button type="button" id="t-play" class="t-play" aria-label="再生">▶</button>
+        <button type="button" id="t-stop" aria-label="停止">■</button>
+        <button type="button" id="t-next" aria-label="次の曲の頭へ（頭出し）">▶▶|</button>
+        <button type="button" id="t-flip" aria-label="A面とB面を切り替える">A ⇄ B</button>
+      </div>
+      <div class="drow">
+        <span>テープ長</span>
+        <div class="seg" role="radiogroup" aria-label="テープ長">
+          <label><input type="radio" name="tlen" value="C46"><span>C-46</span></label>
+          <label><input type="radio" name="tlen" value="C60" checked><span>C-60</span></label>
+          <label><input type="radio" name="tlen" value="C90"><span>C-90</span></label>
+          <label><input type="radio" name="tlen" value="C120"><span>C-120</span></label>
+        </div>
+      </div>
+      <div class="drow">
+        <span>リバース</span>
+        <div class="seg" role="radiogroup" aria-label="リバース方式">
+          <label><input type="radio" name="rev" value="manual" checked><span>手動で裏返す</span></label>
+          <label><input type="radio" name="rev" value="once"><span>オートリバース</span></label>
+          <label><input type="radio" name="rev" value="loop"><span>連続リバース</span></label>
+        </div>
+      </div>
+      <div class="drow">
+        <label class="filebtn">曲を追加<input type="file" id="file" accept="audio/*" multiple></label>
+        <button type="button" id="t-swap">テープの入れ替え</button>
+        <span class="deck-msg" id="deck-msg">WAV / MP3 / FLAC / AAC。複数選択・ドラッグ＆ドロップ可。</span>
+      </div>
+      <div class="sides">
+        <div class="side">
+          <div class="side-head"><b>A面</b><span id="use-A"></span></div>
+          <div class="usebar"><i id="bar-A"></i></div>
+          <ol class="tlist" id="list-A"></ol>
+        </div>
+        <div class="side">
+          <div class="side-head"><b>B面</b><span id="use-B"></span></div>
+          <div class="usebar"><i id="bar-B"></i></div>
+          <ol class="tlist" id="list-B"></ol>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -366,6 +455,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
 
 <script src="correction.js"></script>
 <script src="cassette.js"></script>
+<script src="deck.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -388,6 +478,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
     $('age').disabled = !opts.age;
     cfg = CASSETTE.config(opts);
     cfg.opts = opts;
+    if (typeof deck !== 'undefined' && deck.headRev) cfg.azDelay += (P.azDelay / P.azimuthMin) * P.revAzMin;   // auto-reverse head on side B
     $('rec-v').textContent = (opts.recLevel > 0 ? '+' : '') + opts.recLevel.toFixed(1) + ' dB';
     $('wfs-v').textContent = '×' + opts.wfScale.toFixed(2) + '（' + cfg.wfPct.toFixed(3) + '%）';
     $('hiss-v').textContent = opts.hissOffset <= -200 ? 'OFF' : (opts.hissOffset > 0 ? '+' : '') + opts.hissOffset + ' dB';
@@ -606,6 +697,10 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
     ctx = new (window.AudioContext || window.webkitAudioContext)();
     N.input = ctx.createGain();                       // everything the source feeds
     N.input.channelCount = 2; N.input.channelCountMode = 'explicit'; N.input.channelInterpretation = 'speakers'; // mono → L+R
+    N.srcBus = ctx.createGain();                      // every source
+    N.srcBus.channelCount = 2; N.srcBus.channelCountMode = 'explicit'; N.srcBus.channelInterpretation = 'speakers';
+    N.srcBus.connect(N.input);
+
     N.dry = ctx.createGain(); N.wet = ctx.createGain();
     N.master = ctx.createGain(); N.master.gain.value = 0;
     N.input.connect(N.dry); N.dry.connect(N.master);
@@ -688,9 +783,8 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
     N.master.connect(N.corrConv); N.corrConv.connect(N.corrWet); N.corrWet.connect(ctx.destination);
 
     // streaming file player
-    mediaEl = new Audio(); mediaEl.loop = true; mediaEl.preload = 'auto';
-    mediaNode = ctx.createMediaElementSource(mediaEl); mediaNode.connect(N.input);
-    mediaEl.addEventListener('timeupdate', showTime); mediaEl.addEventListener('durationchange', showTime);
+    mediaEl = new Audio(); mediaEl.preload = 'auto';
+    mediaNode = ctx.createMediaElementSource(mediaEl); mediaNode.connect(N.srcBus);
 
     setInterval(scheduleDrops, 150);
     t0 = ctx.currentTime + 0.05;
@@ -770,106 +864,493 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
     corrSwap = setTimeout(() => { N.corrConv.buffer = buf; N.corrWet.gain.setTargetAtTime(1, ctx.currentTime, 0.015); }, 60);
   }
 
-  // ---------- transport ----------
-  const fmtT = (t) => {
-    if (!isFinite(t)) return '--:--';
-    const s = Math.floor(t % 60), m = Math.floor(t / 60) % 60, hh = Math.floor(t / 3600);
-    return (hh ? hh + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
-  };
-  function showTime() {
-    if (!mediaEl) return;
-    const d = mediaEl.duration;
-    $('time').textContent = `${fmtT(mediaEl.currentTime)} / ${fmtT(d)}`;
-    if (!seeking && isFinite(d) && d > 0) $('seek').value = Math.round((mediaEl.currentTime / d) * 1000);
-  }
+  // ---------- test sources ----------
   const srcMode = () => radio('src');
-  function showSeek() { $('seekwrap').hidden = !(fileMode === 'media' && srcMode() === 'file'); }
-  $('seek').addEventListener('input', () => { seeking = true; if (mediaEl && isFinite(mediaEl.duration)) $('time').textContent = `${fmtT(($('seek').value / 1000) * mediaEl.duration)} / ${fmtT(mediaEl.duration)}`; });
-  $('seek').addEventListener('change', () => { if (mediaEl && isFinite(mediaEl.duration)) mediaEl.currentTime = ($('seek').value / 1000) * mediaEl.duration; seeking = false; });
-
   function currentBuffer() {
-    const m = srcMode();
-    if (m === 'file' && fileMode === 'buffer' && fileBuf) return fileBuf;
-    if (m === 'tone') return toneBuf || (toneBuf = makeTone());
+    if (srcMode() === 'tone') return toneBuf || (toneBuf = makeTone());
     return pinkBuf || (pinkBuf = makePink());
   }
-  function start() {
-    ensureCtx();
-    ctx.resume();
+  function setMaster(on) {
+    if (!ctx) return;
+    N.master.gain.setTargetAtTime(on ? +$('vol').value : 0, ctx.currentTime, 0.03);
+  }
+  function start() {                       // test signal
+    ensureCtx(); ctx.resume();
     stopSource();
-    if (srcMode() === 'file' && fileMode === 'media') {
-      mediaEl.play().catch(() => { $('srcname').textContent = '再生を開始できません。もう一度「再生」を押してください'; stop(); });
-    } else {
-      src = ctx.createBufferSource(); src.buffer = currentBuffer(); src.loop = true; src.connect(N.input); src.start();
-    }
-    N.master.gain.setTargetAtTime(+$('vol').value, ctx.currentTime, 0.03);
-    playing = true; $('play').textContent = '■ 停止'; $('play').classList.add('on');
+    src = ctx.createBufferSource(); src.buffer = currentBuffer(); src.loop = true; src.connect(N.srcBus); src.start();
+    setMaster(true);
+    playing = true; showPlay();
     tick();
   }
   function stopSource() {
     if (src) { try { src.stop(); } catch (e) {} src.disconnect(); src = null; }
-    if (mediaEl) mediaEl.pause();
   }
   function stop() {
     stopSource();
-    if (ctx) N.master.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
-    playing = false; $('play').textContent = '▶ 再生'; $('play').classList.remove('on');
+    setMaster(false);
+    playing = false; showPlay();
+  }
+  function showPlay() {
+    const on = srcMode() === 'tape' ? deck.mode !== 'stop' : playing;
+    $('play').textContent = on ? '■ 停止' : '▶ 再生';
+    $('play').classList.toggle('on', on);
   }
   function tick() {
     if (!playing) return;
     if (radio('view') === 'wf') draw();
     requestAnimationFrame(tick);
   }
-  $('play').addEventListener('click', () => (playing ? stop() : start()));
+  $('play').addEventListener('click', () => {
+    if (srcMode() === 'tape') { deck.mode === 'stop' ? deckPlay() : deckStop(); return; }
+    playing ? stop() : start();
+  });
   $('vol').addEventListener('input', () => { if (ctx && playing) N.master.gain.setTargetAtTime(+$('vol').value, ctx.currentTime, 0.02); });
   document.querySelectorAll('input[name=ab]').forEach((el) => el.addEventListener('change', setAB));
   document.querySelectorAll('input[name=src]').forEach((el) => el.addEventListener('change', () => {
-    if (srcMode() === 'file' && !fileMode) { $('src-pink').checked = true; $('file').click(); return; }
-    showSeek();
-    if (playing) start();
+    if (srcMode() === 'tape') {
+      if (playing) stop();
+      if (!deck.sides.A.length && !deck.sides.B.length) msg('曲を追加すると、A面から順に収録します。');
+    } else {
+      if (deck.mode !== 'stop') deckStop();
+      if (playing) start();
+    }
+    showPlay();
   }));
 
-  async function loadFile(file) {
-    if (!file) return;
-    ensureCtx();
-    stop();
-    $('srcname').textContent = '読み込み中…';
-    if (fileUrl) URL.revokeObjectURL(fileUrl);
-    fileUrl = URL.createObjectURL(file);
-    const ok = await new Promise((resolve) => {
+  // ---------- cassette: tracks on side A / B ----------
+  const deck = { tape: 'C60', sides: { A: [], B: [] }, side: 'A', pos: 0, mode: 'stop', reverse: 'manual', headRev: false,
+    seg: null, gapT0: 0, gapPos0: 0, cue: null, lastT: 0, angL: 0, angR: 0, label: DECK.randomLabel() };
+  const trackLabel = (t) => (t.title || t.name) + (t.artist ? ` / ${t.artist}` : '');
+  if (document.fonts && document.fonts.load) { document.fonts.load('600 20px "Caveat"'); document.fonts.load('20px "Yomogi"', 'あ'); }
+  let trackId = 1;
+  const sideSec = () => DECK.TAPES[deck.tape].sideSec;
+  const segs = (s = deck.side) => DECK.layout(deck.sides[s]).segs;
+  function msg(t, err) { const el = $('deck-msg'); el.textContent = t; el.classList.toggle('err', !!err); }
+
+  // duration from metadata (streaming), else decode the whole file (fallback)
+  function waitMedia(el, okEvents, ms) {
+    return new Promise((resolve) => {
       let timer;
-      const done = (v) => { clearTimeout(timer); mediaEl.removeEventListener('canplay', yes); mediaEl.removeEventListener('error', no); resolve(v); };
+      const done = (v) => { clearTimeout(timer); okEvents.forEach((e) => el.removeEventListener(e, yes)); el.removeEventListener('error', no); resolve(v); };
       const yes = () => done(true), no = () => done(false);
-      mediaEl.addEventListener('canplay', yes); mediaEl.addEventListener('error', no);
-      timer = setTimeout(() => done(false), 15000);
-      mediaEl.src = fileUrl; mediaEl.load();
+      okEvents.forEach((e) => el.addEventListener(e, yes)); el.addEventListener('error', no);
+      timer = setTimeout(() => done(false), ms);
     });
-    if (ok) { fileMode = 'media'; fileBuf = null; finishLoad(file.name); return; }
-    mediaEl.removeAttribute('src'); mediaEl.load();
+  }
+  async function readTags(file) {
     try {
-      fileBuf = await ctx.decodeAudioData(await file.arrayBuffer());
-      fileMode = 'buffer';
-      finishLoad(file.name);
-    } catch (e) {
-      const mb = file.size / 1048576;
-      $('srcname').textContent = mb > 60
-        ? `読み込めません（${mb.toFixed(0)} MB）。このブラウザでは長いファイルを展開しきれませんでした。分割するか、GitHub版／ローカル版で開いてください`
-        : 'このファイルは読み込めません。WAV / MP3 / FLAC / AAC などの音声ファイルを選んでください';
-      fileMode = null; fileBuf = null; $('src-pink').checked = true; showSeek();
+      const K = 512 * 1024;
+      const head = new Uint8Array(await file.slice(0, K).arrayBuffer());
+      const tail = file.size > K ? new Uint8Array(await file.slice(file.size - K).arrayBuffer()) : head;
+      return DECK.parseTags(head, tail, file.name);
+    } catch (e) { return DECK.nameTags(file.name); }
+  }
+  async function probe(file) {
+    const url = URL.createObjectURL(file);
+    const a = new Audio(); a.preload = 'metadata';
+    const p = waitMedia(a, ['loadedmetadata'], 8000);
+    a.src = url;
+    if (await p && isFinite(a.duration) && a.duration > 0) { a.removeAttribute('src'); return { url, dur: a.duration }; }
+    try {
+      ensureCtx();
+      const buf = await ctx.decodeAudioData(await file.arrayBuffer());
+      URL.revokeObjectURL(url);
+      return { buf, dur: buf.duration };
+    } catch (e) { URL.revokeObjectURL(url); return null; }
+  }
+  async function addFiles(files) {
+    files = [...files].filter((f) => /^audio\//.test(f.type) || /\.(mp3|wav|flac|aac|m4a|ogg|opus|aif|aiff)$/i.test(f.name));
+    if (!files.length) return;
+    msg(`${files.length}曲を読み込み中…`);
+    const fresh = [], bad = [];
+    for (const f of files) {
+      const r = await probe(f);
+      if (r) fresh.push({ id: trackId++, name: f.name.replace(/\.[^.]+$/, ''), ...(await readTags(f)), ...r }); else bad.push(f.name);
+    }
+    const res = DECK.assign(deck.sides, fresh, sideSec());
+    deck.sides = res.sides;
+    res.rejected.forEach(dropTrack);
+    const parts = [];
+    if (fresh.length - res.rejected.length) parts.push(`${fresh.length - res.rejected.length}曲を収録しました`);
+    if (res.rejected.length) parts.push(`${res.rejected.length}曲は${DECK.TAPES[deck.tape].label}に入りきりません`);
+    if (bad.length) parts.push(`${bad.length}曲は読み込めませんでした`);
+    msg(parts.join('。') + '。', res.rejected.length || bad.length);
+    $('src-file').checked = true; if (playing) stop();
+    renderLists(); showPlay();
+  }
+  function dropTrack(t) { if (t.url) URL.revokeObjectURL(t.url); }
+  $('file').addEventListener('change', (e) => { addFiles(e.target.files); e.target.value = ''; });
+
+  function renderLists() {
+    ['A', 'B'].forEach((s) => {
+      const L = DECK.layout(deck.sides[s]), cap = sideSec();
+      $('use-' + s).textContent = `${DECK.fmt(L.used)} / ${DECK.fmt(cap)}　残り ${DECK.fmt(cap - L.used)}`;
+      $('bar-' + s).style.width = Math.min(100, (L.used / cap) * 100) + '%';
+      const ol = $('list-' + s);
+      ol.textContent = '';
+      if (!deck.sides[s].length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = '空き'; ol.appendChild(li); return; }
+      deck.sides[s].forEach((t, i) => {
+        const li = document.createElement('li');
+        if (deck.seg && deck.seg.track === t) li.className = 'now';
+        const n = document.createElement('span'); n.className = 'n'; n.textContent = i + 1;
+        const nm = document.createElement('span'); nm.className = 'nm'; nm.textContent = trackLabel(t); nm.title = `${trackLabel(t)}（${t.name}）`;
+        const d = document.createElement('span'); d.className = 'd'; d.textContent = DECK.fmt(t.dur);
+        const acts = document.createElement('span'); acts.className = 'acts';
+        const btn = (label, aria, fn) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.setAttribute('aria-label', aria); b.addEventListener('click', fn); acts.appendChild(b); };
+        btn('↑', `${t.name}を上へ`, () => editTape(() => { if (i) { const a = deck.sides[s]; [a[i - 1], a[i]] = [a[i], a[i - 1]]; } }));
+        btn('↓', `${t.name}を下へ`, () => editTape(() => { const a = deck.sides[s]; if (i < a.length - 1) [a[i + 1], a[i]] = [a[i], a[i + 1]]; }));
+        btn(s === 'A' ? '→B' : '→A', `${t.name}を${s === 'A' ? 'B' : 'A'}面へ`, () => editTape(() => {
+          const o = s === 'A' ? 'B' : 'A';
+          if (!DECK.fits(deck.sides[o], t, sideSec())) { msg(`${o}面に入りきりません。`, true); return; }
+          deck.sides[s].splice(i, 1); deck.sides[o].push(t);
+        }));
+        btn('×', `${t.name}を削除`, () => editTape(() => { deck.sides[s].splice(i, 1); dropTrack(t); }));
+        li.append(n, nm, d, acts);
+        ol.appendChild(li);
+      });
+    });
+  }
+  function editTape(fn) {
+    if (deck.mode !== 'stop') deckStop();
+    fn();
+    renderLists(); updateCounter();
+  }
+  document.querySelectorAll('input[name=tlen]').forEach((el) => el.addEventListener('change', () => {
+    if (deck.mode !== 'stop') deckStop();
+    deck.tape = radio('tlen');
+    const r = DECK.refit(deck.sides, sideSec());
+    deck.sides = r.sides; r.rejected.forEach(dropTrack);
+    deck.pos = Math.min(deck.pos, sideSec());
+    msg(r.rejected.length ? `${r.rejected.length}曲が${DECK.TAPES[deck.tape].label}に入りきらず、外しました。` : `${DECK.TAPES[deck.tape].label}（片面${sideSec() / 60}分）に変更しました。`, r.rejected.length);
+    renderLists(); updateCounter();
+  }));
+  document.querySelectorAll('input[name=rev]').forEach((el) => el.addEventListener('change', () => {
+    deck.reverse = radio('rev');
+    deck.headRev = deck.reverse !== 'manual' && deck.side === 'B';
+    $('t-flip').textContent = deck.reverse === 'manual' ? 'A ⇄ B' : '◀ ▶ 反転';
+    update();
+  }));
+
+  // ---------- playback engine: <audio> streaming, AudioBuffer fallback ----------
+  const player = {
+    track: null, kind: null, bsrc: null, bOff: 0, bT0: 0, rate: 1,
+    async start(track, offset, rate = 1) {
+      this.stop();
+      this.track = track; this.rate = rate;
+      if (track.buf) {
+        const b = ctx.createBufferSource(); b.buffer = track.buf; b.playbackRate.value = rate; b.connect(N.srcBus);
+        b.start(0, Math.min(offset, track.buf.duration - 0.01));
+        this.bsrc = b; this.bOff = offset; this.bT0 = ctx.currentTime; this.kind = 'buf';
+        return true;
+      }
+      mediaEl.preservesPitch = false; mediaEl.mozPreservesPitch = false; mediaEl.webkitPreservesPitch = false;
+      if (mediaEl.dataset.id !== String(track.id)) {
+        const p = waitMedia(mediaEl, ['canplay'], 10000);
+        mediaEl.src = track.url; mediaEl.dataset.id = String(track.id);
+        if (!(await p)) { msg(`${track.name} を再生できません。`, true); return false; }
+      }
+      if (this.track !== track) return false;           // superseded while loading
+      mediaEl.currentTime = offset;
+      mediaEl.playbackRate = rate;
+      this.kind = 'media';
+      try { await mediaEl.play(); } catch (e) { return false; }
+      return true;
+    },
+    setRate(r) {
+      if (this.kind === 'media') mediaEl.playbackRate = r;
+      if (this.kind === 'buf' && this.bsrc) { this.bOff = this.time(); this.bT0 = ctx.currentTime; this.bsrc.playbackRate.value = r; }
+      this.rate = r;
+    },
+    time() {
+      if (this.kind === 'media') return mediaEl.currentTime;
+      if (this.kind === 'buf') return this.bOff + (ctx.currentTime - this.bT0) * this.rate;
+      return 0;
+    },
+    ended() {
+      if (!this.track) return true;
+      if (this.kind === 'media') return mediaEl.ended || mediaEl.currentTime >= this.track.dur - 0.03;
+      return this.time() >= this.track.dur - 0.01;
+    },
+    stop() {
+      if (this.bsrc) { try { this.bsrc.stop(); } catch (e) {} this.bsrc.disconnect(); this.bsrc = null; }
+      if (mediaEl) mediaEl.pause();
+      this.track = null; this.kind = null;
+    },
+  };
+
+  function playAt(pos) {
+    deck.pos = pos;
+    const loc = DECK.locate(segs(), pos);
+    if (loc.kind === 'track') {
+      deck.seg = segs()[loc.index];
+      player.start(deck.seg.track, loc.offset, 1);
+    } else {
+      deck.seg = null; player.stop();
+      deck.gapT0 = ctx.currentTime; deck.gapPos0 = pos;
+    }
+    renderLists();
+  }
+  function deckPlay() {
+    ensureCtx(); ctx.resume();
+    if (playing && deck.mode === 'stop') stop();        // a test signal was running
+    if (srcMode() !== 'tape') $('src-file').checked = true;
+    endCue(false);
+    if (deck.pos >= sideSec() - 0.05) {                 // at the end of the side
+      if (deck.reverse === 'manual') { msg('この面の終わりです。「A ⇄ B」で裏返すか、巻き戻してください。'); return; }
+      flip(false);
+    }
+    deck.mode = 'play';
+    playing = true; setMaster(true); showPlay(); tick();
+    playAt(deck.pos);
+  }
+  function deckStop() {
+    endCue(false);
+    player.stop(); deck.seg = null;
+    deck.mode = 'stop';
+    playing = false; setMaster(false); showPlay(); renderLists();
+  }
+  // Turn the cassette over (manual) or reverse the head direction (auto-reverse).
+  // Change sides. From the A⇄B button the other side starts from its beginning (as if wound back
+  // first); at the end of a side the other side's beginning is where the tape already is.
+  // While playing, play carries on after a pause: ~1 s to turn the cassette over by hand,
+  // ~0.45 s for an auto-reverse head.
+  function flip(resume, fromButton) {
+    ensureCtx();
+    const wasPlaying = deck.mode === 'play';
+    player.stop(); deck.seg = null;
+    deck.pos = fromButton ? 0 : DECK.flipPos(deck.pos, sideSec());
+    deck.side = deck.side === 'A' ? 'B' : 'A';
+    deck.headRev = deck.reverse !== 'manual' && deck.side === 'B';
+    deck.flipAnim = performance.now();
+    update();                                            // azimuth of the reversed head
+    if (resume && wasPlaying) {
+      const pause = deck.reverse === 'manual' ? 1.0 : 0.45;
+      deck.waitUntil = ctx.currentTime + pause;
+      setTimeout(() => { if (deck.mode === 'play') { deck.waitUntil = 0; playAt(deck.pos); } }, pause * 1000);
+    }
+    msg(`${deck.side}面にしました。` + (wasPlaying ? '' : '▶で再生します。'));
+    renderLists(); updateCounter();
+  }
+  function sideEnd() {
+    if (deck.reverse === 'manual' || (deck.reverse === 'once' && deck.side === 'B')) {
+      deck.pos = sideSec(); deckStop();
+      msg(deck.reverse === 'manual' ? `${deck.side}面が終わりました。「A ⇄ B」で裏返すと、反対の面の頭から再生できます。` : 'B面が終わりました。');
+      return;
+    }
+    flip(true);
+  }
+
+  // Music search (頭出し): wind silently to the start of the next / this-or-previous track, then
+  // carry on playing if the tape was playing. The reels spin for up to about a second.
+  function skip(dir) {
+    ensureCtx(); ctx.resume();
+    const S = segs();
+    let to = dir > 0 ? DECK.nextStart(S, deck.pos) : DECK.prevStart(S, deck.pos);
+    if (to === null) to = sideSec();
+    const resume = deck.mode === 'play' || (deck.cue && deck.cue.resume);
+    endCue(false);
+    player.stop(); deck.seg = null;
+    if (playing) { playing = false; setMaster(false); }   // head lifted while winding
+    const dur = Math.min(1.2, Math.max(0.35, Math.abs(to - deck.pos) / 240));
+    deck.cue = { from: deck.pos, to, t0: ctx.currentTime, dur, resume };
+    deck.mode = 'cue';
+    showPlay(); renderLists();
+  }
+  function endCue(resumeIt) {
+    const c = deck.cue;
+    if (!c) return;
+    deck.cue = null;
+    if (!resumeIt) return;
+    deck.pos = c.to;
+    if (c.resume) {
+      deck.mode = 'play'; playing = true; setMaster(true); tick();
+      if (deck.pos >= sideSec() - 0.05) sideEnd(); else playAt(deck.pos);
+    } else deck.mode = 'stop';
+    showPlay(); renderLists();
+  }
+
+  function deckTick() {
+    if (!ctx) return;
+    const now = ctx.currentTime, dt = Math.min(0.2, Math.max(0, now - (deck.lastT || now)));
+    deck.lastT = now;
+    if (deck.mode === 'play') {
+      if (deck.waitUntil && now < deck.waitUntil) return;
+      if (deck.seg && player.track) {
+        deck.pos = deck.seg.start + Math.min(player.time(), deck.seg.track.dur);
+        if (player.ended()) { player.stop(); deck.gapT0 = now; deck.gapPos0 = deck.seg.end; deck.seg = null; renderLists(); }
+      } else if (!deck.seg) {
+        deck.pos = deck.gapPos0 + (now - deck.gapT0);
+        const loc = DECK.locate(segs(), deck.pos);
+        if (loc.kind === 'track') playAt(deck.pos);
+      }
+      if (deck.pos >= sideSec()) sideEnd();
+    } else if (deck.mode === 'ff' || deck.mode === 'rew') {
+      deck.pos += (deck.mode === 'ff' ? 1 : -1) * DECK.WIND * dt;
+      const atEnd = deck.mode === 'ff' ? deck.pos >= sideSec() : deck.pos <= 0;
+      if (atEnd) { deck.pos = Math.min(sideSec(), Math.max(0, deck.pos)); deck.mode = 'stop'; showPlay(); }
+    } else if (deck.mode === 'cue' && deck.cue) {
+      const c = deck.cue, k = Math.min(1, (now - c.t0) / c.dur);
+      deck.pos = c.from + (c.to - c.from) * k;
+      if (k >= 1) endCue(true);
     }
   }
-  function finishLoad(name) {
-    $('srcname').textContent = name; $('src-file').checked = true; $('seek').value = 0;
-    showSeek(); showTime(); start();
+  setInterval(deckTick, 50);
+
+  function rate() {
+    if (deck.mode === 'play') return 1;
+    if (deck.mode === 'ff') return DECK.WIND;
+    if (deck.mode === 'rew') return -DECK.WIND;
+    if (deck.mode === 'cue' && deck.cue) return (deck.cue.to - deck.cue.from) / deck.cue.dur;
+    return 0;
   }
-  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  const MODE_LABEL = { stop: 'STOP', play: 'PLAY', cue: 'SEARCH' };
+  function updateCounter() {
+    $('c-side').textContent = deck.side;
+    $('c-time').textContent = DECK.fmt(deck.pos);
+    $('c-len').textContent = `/ ${DECK.fmt(sideSec())}`;
+    $('c-mode').textContent = MODE_LABEL[deck.mode] + (deck.headRev ? ' ◀' : '');
+    const loc = DECK.locate(segs(), deck.pos);
+    $('c-track').textContent = loc.kind === 'track'
+      ? `${deck.side}面 ${loc.index + 1}曲目　${trackLabel(deck.sides[deck.side][loc.index])}`
+      : (deck.sides[deck.side].length ? (loc.next < deck.sides[deck.side].length ? `${deck.side}面 ${loc.next + 1}曲目の前（無音）` : `${deck.side}面 収録の終わり（無音）`) : `${deck.side}面は空です`);
+    $('t-play').classList.toggle('active', deck.mode === 'play');
+  }
+
+  // cassette window: drawn to the real shell (100 x 63.8 mm, reel centres 42.5 mm apart, 11 mm hubs);
+  // each tape pack is sized by how much tape it holds and turns at the real angular speed
+  function drawCassette(dt) {
+    const cv = $('cass'), w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const R = DECK.reels(deck.tape, deck.pos), v = rate();
+    // Both reels turn the same way (counter-clockwise in play, seen from the label side). The drawn
+    // step per frame is capped below half the 6-tooth symmetry so fast winding never looks reversed.
+    const step = (r) => { const a = DECK.omega(r, v) * dt, cap = 0.45; return Math.sign(a) * Math.min(Math.abs(a), cap); };
+    deck.angL -= step(R.supply); deck.angR -= step(R.takeup);
+    const s = Math.min(w / 104, h / 67.8), ox = (w - 100 * s) / 2, oy = (h - 63.8 * s) / 2;
+    const fk = deck.flipAnim ? (performance.now() - deck.flipAnim) / 500 : 1;   // turning over: squeeze through edge-on
+    if (fk < 1) { const sx = Math.max(0.03, Math.abs(Math.cos(Math.PI * fk))); g.translate(w / 2, 0); g.scale(sx, 1); g.translate(-w / 2, 0); }
+    const X = (mm) => ox + mm * s, Y = (mm) => oy + mm * s, M = (m) => m * 1000 * s;   // m -> px
+    const rect = (x, y, ww, hh, r) => { g.beginPath(); g.roundRect(X(x), Y(y), ww * s, hh * s, r * s); };
+    // shell
+    g.fillStyle = '#25282c'; g.strokeStyle = '#3a3f45'; g.lineWidth = 2; rect(0, 0, 100, 63.8, 3); g.fill(); g.stroke();
+    // label
+    const tapeCol = { I: '#d9dde1', II: '#f0c75e', III: '#e39a5c', IV: '#c9ced4' }[cfg.opts.tape];
+    g.fillStyle = deck.label.paper; rect(5, 4, 90, 42, 1.5); g.fill();
+    g.fillStyle = tapeCol; g.fillRect(X(5), Y(4), 90 * s, 7 * s);
+    g.fillStyle = '#1a1c1e'; g.textBaseline = 'middle';
+    g.font = `600 ${5 * s}px "Saira Condensed", sans-serif`;
+    g.textAlign = 'left'; g.fillText(`TYPE ${cfg.opts.tape}`, X(8), Y(7.6));
+    g.textAlign = 'right'; g.fillText(DECK.TAPES[deck.tape].label, X(92), Y(7.6));
+    g.font = `700 ${9 * s}px "Saira Condensed", sans-serif`; g.textAlign = 'left'; g.fillText(deck.side, X(8), Y(17));
+    g.strokeStyle = 'rgba(26,28,30,0.25)'; g.lineWidth = 1;
+    [16.6, 21].forEach((y) => { g.beginPath(); g.moveTo(X(16), Y(y)); g.lineTo(X(92), Y(y)); g.stroke(); });
+    // handwritten: the artist on the first rule, the titles on the second
+    const cap = DECK.sideCaption(deck.sides[deck.side]);
+    if (cap.artist || cap.titles) {
+      const hand = (txt, base, maxMm, minMm, yMm) => {
+        if (!txt) return;
+        let size = base;
+        const face = (sz) => `600 ${sz * s}px "Caveat", "Yomogi", "Comic Sans MS", cursive`;
+        g.font = face(size);
+        while (g.measureText(txt).width > maxMm * s && size > minMm) { size -= 0.25; g.font = face(size); }
+        let out = txt;
+        while (g.measureText(out).width > maxMm * s && out.length > 2) out = out.slice(0, -2) + '…';
+        g.fillText(out, X(17), Y(yMm));
+      };
+      g.save();
+      g.translate(X(54), Y(18)); g.rotate(deck.label.tilt); g.translate(-X(54), -Y(18));
+      g.fillStyle = deck.label.ink; g.textAlign = 'left'; g.textBaseline = 'alphabetic';
+      hand(cap.artist || cap.titles, 5.4, 74, 3.4, 16.1);
+      if (cap.artist) hand(cap.titles, 3.4, 74, 2.4, 20.5);
+      g.restore();
+      g.textBaseline = 'middle';
+    }
+    // window over both reels
+    // window: a slot between the reels plus a round hole over each hub
+    const cy = 33.6, cxL = 50 - 21.25, cxR = 50 + 21.25;
+    const windowPath = () => {
+      g.beginPath(); g.roundRect(X(cxL), Y(cy - 8.5), 42.5 * s, 17 * s, 3 * s);
+      g.moveTo(X(cxL) + 12.2 * s, Y(cy)); g.arc(X(cxL), Y(cy), 12.2 * s, 0, Math.PI * 2);
+      g.moveTo(X(cxR) + 12.2 * s, Y(cy)); g.arc(X(cxR), Y(cy), 12.2 * s, 0, Math.PI * 2);
+    };
+    g.fillStyle = '#121416'; windowPath(); g.fill('nonzero');
+    g.save(); windowPath(); g.clip('nonzero');
+    const pack = (cx, r) => {
+      g.fillStyle = '#5a3a24'; g.beginPath(); g.arc(X(cx), Y(cy), M(r), 0, Math.PI * 2); g.fill();
+      g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 1;
+      for (let k = 0.3; k < 1; k += 0.2) { g.beginPath(); g.arc(X(cx), Y(cy), M(R.hub + (r - R.hub) * k), 0, Math.PI * 2); g.stroke(); }
+    };
+    pack(cxL, R.supply); pack(cxR, R.takeup);
+    g.restore();
+    const hub = (cx, ang) => {
+      g.fillStyle = '#e9e6df'; g.beginPath(); g.arc(X(cx), Y(cy), M(R.hub), 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#121416'; g.beginPath(); g.arc(X(cx), Y(cy), 4.6 * s, 0, Math.PI * 2); g.fill();
+      g.fillStyle = '#e9e6df';
+      for (let k = 0; k < 6; k++) {                       // drive teeth
+        const a = ang + (k * Math.PI) / 3;
+        g.beginPath(); g.arc(X(cx) + Math.cos(a) * 4.2 * s, Y(cy) + Math.sin(a) * 4.2 * s, 1.1 * s, 0, Math.PI * 2); g.fill();
+      }
+    };
+    hub(cxL, deck.angL); hub(cxR, deck.angR);
+    // head opening and tape along the bottom edge
+    g.fillStyle = '#1b1d20'; g.beginPath();
+    g.moveTo(X(16), Y(63.8)); g.lineTo(X(21), Y(51)); g.lineTo(X(79), Y(51)); g.lineTo(X(84), Y(63.8)); g.closePath(); g.fill();
+    g.fillStyle = '#5a3a24'; g.fillRect(X(18), Y(60.2), 64 * s, 1 * s);
+    g.fillStyle = '#3a3f45'; [33, 50, 67].forEach((x) => { g.beginPath(); g.arc(X(x), Y(56.5), 2.2 * s, 0, Math.PI * 2); g.fill(); });
+    g.fillStyle = '#5b6168'; [[3.5, 3.5], [96.5, 3.5], [3.5, 60.3], [96.5, 60.3], [50, 48.5]].forEach(([x, y]) => { g.beginPath(); g.arc(X(x), Y(y), 1.2 * s, 0, Math.PI * 2); g.fill(); });
+  }
+  let lastDraw = performance.now();
+  function deckFrame(t) {
+    const dt = Math.min(0.1, (t - lastDraw) / 1000); lastDraw = t;
+    if (cfg) { drawCassette(dt); updateCounter(); }
+    requestAnimationFrame(deckFrame);
+  }
+  requestAnimationFrame(deckFrame);
+
+  // Swap in a blank tape: all tracks cleared, side A, wound to the start. Asks for a second press.
+  let swapArmed = null;
+  $('t-swap').addEventListener('click', () => {
+    const btn = $('t-swap');
+    if (!deck.sides.A.length && !deck.sides.B.length) { msg('テープは空です。'); return; }
+    if (!swapArmed) {
+      btn.textContent = 'もう一度押すと全曲を消去';
+      btn.classList.add('armed');
+      swapArmed = setTimeout(() => { swapArmed = null; btn.textContent = 'テープの入れ替え'; btn.classList.remove('armed'); }, 3000);
+      return;
+    }
+    clearTimeout(swapArmed); swapArmed = null;
+    btn.textContent = 'テープの入れ替え'; btn.classList.remove('armed');
+    endCue(false);
+    if (deck.mode !== 'stop') deckStop();
+    [...deck.sides.A, ...deck.sides.B].forEach(dropTrack);
+    if (mediaEl) { mediaEl.removeAttribute('src'); mediaEl.dataset.id = ''; mediaEl.load(); }
+    deck.sides = { A: [], B: [] }; deck.side = 'A'; deck.pos = 0; deck.headRev = false;
+    deck.label = DECK.randomLabel();                     // a new tape, a new label
+    update();
+    renderLists(); updateCounter();
+    msg('新しいテープに入れ替えました。曲を追加すると、A面から順に収録します。');
+  });
+
+  $('t-play').addEventListener('click', () => { if (deck.mode !== 'play') deckPlay(); });
+  $('t-stop').addEventListener('click', () => { endCue(false); deckStop(); });
+  $('t-next').addEventListener('click', () => skip(1));
+  $('t-prev').addEventListener('click', () => skip(-1));
+  $('t-flip').addEventListener('click', () => { endCue(false); flip(true, true); });
+
   window.addEventListener('dragover', (e) => e.preventDefault());
   window.addEventListener('drop', async (e) => {
     e.preventDefault();
-    const f = e.dataTransfer.files[0];
-    if (!f) return;
-    if (/\.(txt|csv)$/i.test(f.name)) loadCorrText(await f.text(), f.name); else loadFile(f);
+    const fs = [...e.dataTransfer.files];
+    const txt = fs.find((f) => /\.(txt|csv)$/i.test(f.name));
+    if (txt) loadCorrText(await txt.text(), txt.name);
+    addFiles(fs.filter((f) => f !== txt));
   });
+  renderLists();
 
   // ---------- analog level meters ----------
   // 0 dB on both meters = Dolby level (CASSETTE.REF_DBFS rms; a sine at that level reads 0 on both).

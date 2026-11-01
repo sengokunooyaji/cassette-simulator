@@ -1,0 +1,1040 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="カセットテープ再生の音響特性（周波数特性・ワウフラッター・ヒス・飽和・アジマス）を再現する Web Audio シミュレーター">
+<title>カセットデッキ シミュレーター</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Share+Tech+Mono&family=IBM+Plex+Sans+JP:wght@400;500;700&display=swap">
+<style>
+/* Layout: deck faceplate. Transport strip on top, control panel left, fluorescent-display chart right.
+   Deliberately single dark look (graphite faceplate + FL-tube cyan), set explicitly for every host theme. */
+:root {
+  --bg: #141618;
+  --panel: #1c1f22;
+  --panel-2: #22262a;
+  --ink: #e6e8ea;
+  --muted: #8d949b;
+  --rule: #2f3439;
+  --fl: #5fefd0;          /* fluorescent display cyan */
+  --fl-dim: rgba(95, 239, 208, 0.16);
+  --amber: #ffb547;       /* level / azimuth */
+  --rec: #ff5b4f;         /* record red */
+  --grid: #222a2b;
+  --grid-strong: #33413f;
+  --corr: #b9a2ec;
+  --chip: #282c31;
+  --on: #e6e8ea;
+  --on-fg: #141618;
+  --shade: rgba(255, 255, 255, 0.04);
+  --font-display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --font-body: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --font-mono: "Share Tech Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+.wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: flex; flex-wrap: wrap; align-items: end; gap: 6px 24px; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
+.mark { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 4.4vw, 40px); letter-spacing: 0.06em; line-height: 1; margin: 0; text-transform: uppercase; }
+.mark span { color: var(--fl); }
+.mark small { display: block; font-size: 0.36em; letter-spacing: 0.32em; color: var(--muted); font-weight: 500; margin-top: 6px; }
+header p { margin: 0; color: var(--muted); max-width: 64ch; text-wrap: pretty; }
+
+.lbl { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+button, .seg span, .filebtn {
+  font: inherit; font-size: 13px; color: var(--ink); background: var(--chip); border: 1px solid var(--rule);
+  border-radius: 3px; padding: 6px 12px; cursor: pointer; line-height: 1.3;
+}
+button:focus-visible, .seg input:focus-visible + span, input[type=range]:focus-visible, .filebtn:focus-within, select:focus-visible, .deck input:focus-visible + span { outline: 2px solid var(--fl); outline-offset: 2px; }
+input[type=range] { accent-color: var(--fl); }
+input[type=range]:disabled { opacity: 0.35; }
+.ctl > .seg { justify-self: start; }
+.seg.grid { display: grid; width: 100%; }
+.seg.grid.c4 { grid-template-columns: repeat(4, 1fr); }
+.seg.grid.c5 { grid-template-columns: repeat(5, 1fr); }
+.seg.grid span { text-align: center; padding: 5px 4px; line-height: 1.25; height: 100%; }
+.seg.grid span small { display: block; font-size: 10.5px; opacity: 0.75; }
+.seg.grid label + label span { border-left: 1px solid var(--rule); }
+.rowc .stack { display: grid; gap: 6px; }
+.seg { display: inline-flex; border-radius: 3px; overflow: hidden; border: 1px solid var(--rule); }
+.seg label { cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span { display: block; border: 0; border-radius: 0; }
+.seg label + label span { border-left: 1px solid var(--rule); }
+.seg input:checked + span { background: var(--on); color: var(--on-fg); }
+.seg input:disabled + span { opacity: 0.4; cursor: not-allowed; }
+.filebtn input { display: none; }
+select { font: inherit; font-size: 13px; color: var(--ink); background: var(--chip); border: 1px solid var(--rule); border-radius: 3px; padding: 5px 8px; }
+
+/* transport */
+.transport { display: flex; flex-wrap: wrap; gap: 12px 18px; align-items: center; background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px; }
+.transport .group { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; min-width: 0; }
+#play { background: var(--rec); border-color: var(--rec); color: #1a0d0b; min-width: 88px; font-weight: 700; }
+#play.on { background: var(--on); border-color: var(--on); color: var(--on-fg); }
+.ab span { min-width: 84px; text-align: center; font-weight: 500; }
+#srcname { font-family: var(--font-mono); font-size: 12.5px; color: var(--muted); max-width: 30ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seekwrap { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+#seek { width: clamp(120px, 22vw, 260px); }
+.time { font-family: var(--font-mono); font-size: 13px; color: var(--fl); white-space: nowrap; }
+
+/* meter bridge */
+.meters { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 12px 14px 14px; display: grid; gap: 10px; }
+.meters-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.meters-head p { margin: 0; font-size: 12px; color: var(--muted); }
+.meter-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 900px; width: 100%; margin: 0 auto; }
+.meter-row canvas { display: block; width: 100%; max-width: 100%; aspect-ratio: 16 / 9; border-radius: 4px; background: #0b0d0e; }
+
+/* main */
+.main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 16px; display: grid; gap: 18px; }
+.panel h2 { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.deck { display: grid; gap: 8px; }
+.deck label { cursor: pointer; display: block; }
+.deck input { position: absolute; opacity: 0; pointer-events: none; }
+.deck span { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--rule); border-radius: 3px; background: var(--panel-2); }
+.deck b { font-family: var(--font-display); font-size: 18px; font-weight: 600; letter-spacing: 0.04em; }
+.deck em { font-style: normal; font-size: 12px; color: var(--muted); }
+.deck i { font-style: normal; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.deck input:checked + span { border-color: var(--fl); background: var(--fl-dim); }
+.deck input:checked + span i { color: var(--fl); }
+.ctl { display: grid; gap: 4px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.ctl-head b { font-weight: 500; }
+.val { font-family: var(--font-mono); font-size: 13.5px; color: var(--fl); }
+.ctl input[type=range] { width: 100%; }
+.scale { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); margin: 2px 0 0; }
+.rowc { display: grid; gap: 8px; }
+.rowc .line { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.corr { display: grid; gap: 10px; border-top: 1px solid var(--rule); padding-top: 16px; }
+.corr .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.corr-status { font-size: 12.5px; margin: 0; padding: 6px 10px; border-radius: 3px; background: var(--chip); overflow-wrap: anywhere; }
+.corr-status.ok { border-left: 3px solid var(--corr); }
+.corr-status.err { border-left: 3px solid var(--rec); }
+.corr fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 10px; min-width: 0; }
+.corr fieldset:disabled { opacity: 0.45; }
+.corr fieldset .seg { justify-self: start; }
+#reset { justify-self: start; }
+
+/* display */
+.display { background: #0d1011; border: 1px solid var(--rule); border-radius: 4px; padding: 14px 14px 10px; display: grid; gap: 10px; min-width: 0; }
+.display-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 18px; height: 2px; display: inline-block; }
+.svgwrap { overflow-x: auto; }
+svg#chart { display: block; width: 100%; min-width: 520px; height: auto; }
+.readout { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; border-top: 1px solid var(--rule); padding-top: 10px; margin: 0; }
+.readout div { display: grid; }
+.readout dt { font-size: 11px; color: var(--muted); }
+.readout dd { margin: 0; font-family: var(--font-mono); font-size: 17px; color: var(--fl); text-shadow: 0 0 6px rgba(95, 239, 208, 0.35); }
+
+.notes { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 16px; display: grid; gap: 10px; }
+.notes h2 { font-size: 15px; margin: 0; }
+.tblwrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; min-width: 620px; }
+th, td { text-align: left; padding: 6px 10px 6px 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+th { font-weight: 500; color: var(--muted); font-size: 12px; }
+td.mono { font-family: var(--font-mono); white-space: nowrap; }
+.notes p { margin: 0; max-width: 78ch; color: var(--muted); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .readout dd { text-shadow: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 class="mark">Cassette <span>Deck</span> Simulator<small>Compact Cassette Playback Model</small></h1>
+    <p>カセットテープ再生の周波数特性、ワウ・フラッター、テープヒス、飽和、ヘッドのアジマスずれをリアルタイムで再現します。普及モデルと高級モデルを切り替えて、原音と聴き比べられます。</p>
+  </header>
+
+  <section class="transport" aria-label="試聴">
+    <div class="group">
+      <button id="play" type="button">▶ 再生</button>
+      <div class="seg ab" role="radiogroup" aria-label="比較">
+        <label><input type="radio" name="ab" id="ab-tape" value="tape" checked><span>カセット</span></label>
+        <label><input type="radio" name="ab" id="ab-dry" value="dry"><span>原音</span></label>
+      </div>
+    </div>
+    <div class="group">
+      <span class="lbl">Source</span>
+      <div class="seg" role="radiogroup" aria-label="音源">
+        <label><input type="radio" name="src" id="src-pink" value="pink" checked><span>ピンクノイズ</span></label>
+        <label><input type="radio" name="src" id="src-tone" value="tone"><span>3150Hz</span></label>
+        <label><input type="radio" name="src" id="src-file" value="file"><span>ファイル</span></label>
+      </div>
+      <label class="filebtn">ファイルを選ぶ<input type="file" id="file" accept="audio/*"></label>
+      <span id="srcname">未選択（ドラッグ＆ドロップ可）</span>
+      <span class="seekwrap" id="seekwrap" hidden>
+        <input type="range" id="seek" min="0" max="1000" step="1" value="0" aria-label="再生位置">
+        <span class="time" id="time">0:00 / 0:00</span>
+      </span>
+    </div>
+    <div class="group">
+      <label class="lbl" for="vol">Volume</label>
+      <input type="range" id="vol" min="0" max="1" step="0.01" value="0.5">
+    </div>
+  </section>
+
+  <section class="meters" aria-label="録音レベルメーター">
+    <div class="meters-head">
+      <span class="lbl">Record Level</span>
+      <p id="meter-note">0 = ドルビーレベル（−6dBFS）。0dBFSのピークは+3を指します。PEAKランプは、テープの最大出力レベルを超えると点灯します。</p>
+      <div class="seg" role="radiogroup" aria-label="メーターの種類">
+        <label><input type="radio" name="meter" id="m-peak" value="peak" checked><span>PEAK</span></label>
+        <label><input type="radio" name="meter" id="m-vu" value="vu"><span>VU</span></label>
+      </div>
+    </div>
+    <div class="meter-row">
+      <canvas id="meter-l" role="img" aria-label="左チャンネルのレベルメーター"></canvas>
+      <canvas id="meter-r" role="img" aria-label="右チャンネルのレベルメーター"></canvas>
+    </div>
+  </section>
+
+  <div class="main">
+    <aside class="panel" aria-label="設定">
+      <div>
+        <h2>Deck</h2>
+        <div class="deck" role="radiogroup" aria-label="機種">
+          <label><input type="radio" name="player" id="p-budget" value="budget" checked><span><b>普及モデル</b><em>ラジカセ／ポータブル級・2ヘッド</em><i>W&amp;F 0.25% · アジマス 15′ · NRなし</i></span></label>
+          <label><input type="radio" name="player" id="p-premium" value="premium"><span><b>高級モデル</b><em>3ヘッド・クローズドループ級</em><i>W&amp;F 0.04% · アジマス 2′ · Dolby B/C/S · dbx</i></span></label>
+        </div>
+      </div>
+
+      <div class="rowc">
+        <h2 style="margin:0">Tape</h2>
+        <div class="stack">
+          <span>テープ種類</span>
+          <div class="seg grid c4" role="radiogroup" aria-label="テープ種類">
+            <label><input type="radio" name="tape" id="t-1" value="I" checked><span>TYPE I<small>ノーマル</small></span></label>
+            <label><input type="radio" name="tape" id="t-2" value="II"><span>TYPE II<small>ハイポジ</small></span></label>
+            <label><input type="radio" name="tape" id="t-3" value="III"><span>TYPE III<small>FeCr</small></span></label>
+            <label><input type="radio" name="tape" id="t-4" value="IV"><span>TYPE IV<small>メタル</small></span></label>
+          </div>
+        </div>
+        <div class="stack">
+          <span>録音時のNR</span>
+          <div class="seg grid c5" role="radiogroup" aria-label="録音時のノイズリダクション">
+            <label><input type="radio" name="nr" id="dt-off" value="none" checked><span>なし<small>OFF</small></span></label>
+            <label><input type="radio" name="nr" id="dt-on" value="dolby-b"><span>B<small>Dolby</small></span></label>
+            <label><input type="radio" name="nr" id="dt-c" value="dolby-c"><span>C<small>Dolby</small></span></label>
+            <label><input type="radio" name="nr" id="dt-s" value="dolby-s"><span>S<small>Dolby</small></span></label>
+            <label><input type="radio" name="nr" id="dt-dbx" value="dbx"><span>dbx<small>II</small></span></label>
+          </div>
+        </div>
+        <div class="line">
+          <span>再生側のデコード</span>
+          <div class="seg" role="radiogroup" aria-label="再生側のデコード">
+            <label><input type="radio" name="ddec" id="dd-on" value="1" checked><span>ON</span></label>
+            <label><input type="radio" name="ddec" id="dd-off" value="0"><span>OFF</span></label>
+          </div>
+        </div>
+        <p class="note" id="dolby-note"></p>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="age"><b>テープの劣化</b></label><span class="val" id="age-v"></span></div>
+        <div class="seg" role="radiogroup" aria-label="テープの劣化">
+          <label><input type="radio" name="aged" id="aged-off" value="0" checked><span>新品</span></label>
+          <label><input type="radio" name="aged" id="aged-on" value="1"><span>経年劣化あり</span></label>
+        </div>
+        <input type="range" id="age" min="10" max="50" step="1" value="30" disabled>
+        <div class="scale"><span>10年</span><span>30年</span><span>50年</span></div>
+        <p class="note">高域の減衰、ドロップアウト（瞬間的な音の欠け）、転写によるポストエコー、テープの伸びによるワウの増加を、年数に応じて加えます。</p>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="rec"><b>録音レベル</b></label><span class="val" id="rec-v"></span></div>
+        <input type="range" id="rec" min="-12" max="9" step="0.5" value="0">
+        <div class="scale"><span>−12</span><span>0 = ドルビーレベル</span><span>+9 dB</span></div>
+        <p class="note">上げるほどテープが飽和し、高域から先に詰まります（出力の音量は自動で揃えます）。</p>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="wfs"><b>ワウ・フラッター量</b></label><span class="val" id="wfs-v"></span></div>
+        <input type="range" id="wfs" min="0" max="4" step="0.05" value="1">
+        <div class="scale"><span>×0</span><span>×1 標準</span><span>×4</span></div>
+      </div>
+
+      <div class="ctl">
+        <div class="ctl-head"><label for="hiss"><b>テープヒス</b></label><span class="val" id="hiss-v"></span></div>
+        <input type="range" id="hiss" min="-31" max="12" step="1" value="0">
+        <div class="scale"><span>OFF</span><span>0 = 標準</span><span>+12 dB</span></div>
+      </div>
+
+      <div class="corr">
+        <h2 style="margin:0">Playback Correction</h2>
+        <div class="row">
+          <label class="filebtn">補正ファイルを読む<input type="file" id="corr-file" accept=".txt,.csv,text/plain"></label>
+          <button type="button" id="corr-sample">サンプルを試す</button>
+        </div>
+        <p class="corr-status" id="corr-status">未読み込み。再生するヘッドホン／スピーカーの癖を打ち消します。REW測定（.txt）、AutoEQ ParametricEQ / GraphicEQ に対応。</p>
+        <fieldset id="corr-set" disabled>
+          <div class="seg" role="radiogroup" aria-label="再生補正">
+            <label><input type="radio" name="corr" id="corr-on" value="on" checked><span>補正 ON</span></label>
+            <label><input type="radio" name="corr" id="corr-off" value="off"><span>OFF</span></label>
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><label for="corr-boost"><b>最大ブースト</b></label><span class="val" id="corr-boost-v"></span></div>
+            <input type="range" id="corr-boost" min="0" max="12" step="0.5" value="4">
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><label for="corr-lo"><b>補正範囲 下限</b></label><span class="val" id="corr-lo-v"></span></div>
+            <input type="range" id="corr-lo" min="1.3" max="2.5" step="0.01" value="1.6">
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><label for="corr-hi"><b>補正範囲 上限</b></label><span class="val" id="corr-hi-v"></span></div>
+            <input type="range" id="corr-hi" min="3.3" max="4.3" step="0.01" value="4.2">
+          </div>
+          <div class="ctl">
+            <div class="ctl-head"><label for="corr-smooth"><b>平滑化（測定のみ）</b></label></div>
+            <select id="corr-smooth">
+              <option value="var" selected>可変（低域1/6 → 高域1oct）</option>
+              <option value="third">1/3 oct</option>
+              <option value="sixth">1/6 oct</option>
+            </select>
+          </div>
+        </fieldset>
+        <p class="note">補正は原音とカセットの両方に同じだけかかります。</p>
+      </div>
+
+      <button type="button" id="reset">初期値に戻す</button>
+    </aside>
+
+    <section class="display" aria-label="表示">
+      <div class="display-top">
+        <div class="seg" role="radiogroup" aria-label="表示切替">
+          <label><input type="radio" name="view" id="v-fr" value="fr" checked><span>周波数特性</span></label>
+          <label><input type="radio" name="view" id="v-wf" value="wf"><span>回転ムラ</span></label>
+          <label><input type="radio" name="view" id="v-corr" value="corr"><span>再生補正</span></label>
+        </div>
+        <div class="legend" id="legend-fr">
+          <span><i style="background:var(--fl);height:3px"></i>選択中（L/R）</span>
+          <span><i style="background:var(--amber)"></i>モノラル合成</span>
+          <span><i style="background:var(--muted)"></i>もう一方の機種</span>
+        </div>
+        <div class="legend" id="legend-wf" hidden>
+          <span><i style="background:var(--fl);height:3px"></i>テープ速度の偏差</span>
+        </div>
+        <div class="legend" id="legend-corr" hidden>
+          <span><i style="background:var(--muted)"></i>測定（平滑化後）</span>
+          <span><i style="background:var(--corr);height:3px"></i>補正</span>
+          <span><i style="background:var(--ink)"></i>補正後の予測</span>
+        </div>
+      </div>
+      <div class="svgwrap"><svg id="chart" viewBox="0 0 760 380" role="img" aria-label="周波数特性グラフ"></svg></div>
+      <dl class="readout">
+        <div><dt>周波数特性（±3dB）</dt><dd id="r-range">—</dd></div>
+        <div><dt>ワウ・フラッター</dt><dd id="r-wf">—</dd></div>
+        <div><dt>S/N比</dt><dd id="r-sn">—</dd></div>
+        <div><dt>最大出力レベル</dt><dd id="r-mol">—</dd></div>
+        <div><dt>経年 · ドロップアウト</dt><dd id="r-age">—</dd></div>
+      </dl>
+    </section>
+  </div>
+
+  <section class="notes">
+    <h2>モデルの中身</h2>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>要素</th><th>普及モデル</th><th>高級モデル</th><th>実装</th></tr></thead>
+        <tbody>
+          <tr><td>周波数特性 TYPE I / II / III / IV</td><td class="mono">10 / 12 / 12 / 13 kHz まで</td><td class="mono">18 / 20 / 19 / 21 kHz まで</td><td>双二次フィルタ（低域ロールオフ、ヘッドバンプ、ギャップ損失）</td></tr>
+          <tr><td>ワウ・フラッター</td><td class="mono">0.25% WRMS</td><td class="mono">0.04% WRMS</td><td>遅延時間の変調：0.6Hzのワウ、キャプスタン周期のフラッター、帯域制限ランダム</td></tr>
+          <tr><td>S/N比（NRなし）I / II / III / IV</td><td class="mono">47 / 51 / 50 / 52 dB</td><td class="mono">57 / 60 / 59 / 61 dB</td><td>ヒス（ドルビーレベル −6dBFS 基準）</td></tr>
+          <tr><td>最大出力レベル I / II / III / IV</td><td class="mono">+3 / +4 / +5 / +7 dB</td><td class="mono">+6 / +7 / +8 / +11 dB</td><td>tanh 飽和。高域をプリエンファシス（I 6dB、II・III 4.5dB、IV 2.5dB）してから飽和させ、ノーマルほど高域から先に詰まる</td></tr>
+          <tr><td>ヘッドのアジマスずれ</td><td class="mono">15′（L/R差 73µs）</td><td class="mono">2′（10µs）</td><td>R チャンネルの遅延。モノラル合成で高域が打ち消される</td></tr>
+          <tr><td>ドルビー B / C / S</td><td class="mono">なし</td><td class="mono">あり</td><td>動的に動作：録音時は小さい音ほど高域（Sは低域も）をシェルフで持ち上げ、再生時は帰還型の検出で逆に戻す。最大 10 / 20 / 24dB（Sは低域 10dB）</td></tr>
+          <tr><td>dbx</td><td class="mono">なし</td><td class="mono">あり</td><td>動的に動作：録音時 2:1 圧縮、再生時 1:2 伸長（整流平均検出、10Hz 平滑）、高域エンファシス 10dB。テープの誤差は伸長で2倍になる</td></tr>
+          <tr><td>テープの劣化 10 / 30 / 50 年</td><td class="mono" colspan="2">高域 −1 / −4 / −8 dB · ドロップアウト 2 / 12 / 31 回/分</td><td>高域シェルフ、ランダムなドロップアウト、転写ポストエコー（1.8秒後、−55〜−42dB）、ワウ最大×1.8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>数値は1970〜80年代のカタログ値の代表的な水準をもとにした推定で、特定の製品の再現ではありません。ドルビーB/C/Sとdbxは、実際に音量に追従して圧縮・伸長する回路を組んでいます。ドルビーは実機のスライディングバンドをシェルフで近似しています。Cのスペクトラル・スキューイングとアンチサチュレーションは省略しています。周波数特性グラフのdbxデコード時の曲線は、正弦波で測った場合の値です。3150Hzの試験信号は、ワウ・フラッター測定の標準信号です。音程の揺れが最もはっきり聴き取れます。</p>
+  </section>
+</div>
+
+<script src="correction.js"></script>
+<script src="cassette.js"></script>
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const radio = (name) => document.querySelector(`input[name=${name}]:checked`).value;
+
+  // ---------- state ----------
+  let cfg = null;
+  function readControls() {
+    const player = radio('player');
+    const P = CASSETTE.PLAYERS[player];
+    const nr = radio('nr');
+    const isDolby = nr.startsWith('dolby');
+    $('dd-on').disabled = $('dd-off').disabled = nr === 'none' || (isDolby && !P.dolby) || (nr === 'dbx' && !P.dbx);
+    const opts = {
+      player, tape: radio('tape'), nr, nrDecode: radio('ddec') === '1',
+      wfScale: +$('wfs').value, hissOffset: +$('hiss').value <= -31 ? -200 : +$('hiss').value, recLevel: +$('rec').value,
+      age: radio('aged') === '1' ? +$('age').value : 0,
+    };
+    $('age').disabled = !opts.age;
+    cfg = CASSETTE.config(opts);
+    cfg.opts = opts;
+    $('rec-v').textContent = (opts.recLevel > 0 ? '+' : '') + opts.recLevel.toFixed(1) + ' dB';
+    $('wfs-v').textContent = '×' + opts.wfScale.toFixed(2) + '（' + cfg.wfPct.toFixed(3) + '%）';
+    $('hiss-v').textContent = opts.hissOffset <= -200 ? 'OFF' : (opts.hissOffset > 0 ? '+' : '') + opts.hissOffset + ' dB';
+    $('dolby-note').textContent = nr === 'none' ? 'NRなしで録音したテープを再生します。'
+      : isDolby ? (() => {
+        const n = CASSETTE.NR[nr], lo = nr === 'dolby-s' ? '（低域も約10dB）' : '';
+        if (!P.dolby) return `普及モデルには${n.label}回路がないため、静かな部分ほど高域${nr === 'dolby-s' ? 'と低域' : ''}が持ち上がって聴こえます。`;
+        if (cfg.decode) return `${n.label}でデコード。ヒスが高域で約${n.snGain}dB下がります${lo}。テープの高域が落ちていると、デコードがずれて音色が変わります。`;
+        return `デコードしないと、静かな部分ほど高域${nr === 'dolby-s' ? 'と低域' : ''}が持ち上がって聴こえます。`;
+      })()
+      : !P.dbx ? '普及モデルにはdbx回路がないため、dbx録音のテープは強く圧縮され、高域の強調された平板な音で聴こえます。'
+      : cfg.dbxDec ? 'dbxでデコード。ヒスは約30dB下がりますが、静かな曲ではヒスが音に合わせて浮き沈みします（ブリージング）。テープの周波数特性の誤差は2倍に拡大されます。'
+      : 'デコードしないと、強く圧縮され高域の強調された平板な音になります。';
+    $('r-range').textContent = cfg.tape.range;
+    $('r-wf').textContent = cfg.wfPct.toFixed(3) + '% WRMS';
+    $('r-sn').textContent = opts.hissOffset <= -200 ? 'ヒスOFF' : (cfg.snEff - Math.max(0, opts.hissOffset)).toFixed(0) + ' dB' + (cfg.decode || cfg.dbxDec ? '（NR込）' : '');
+    $('r-mol').textContent = '+' + cfg.tape.mol + ' dB';
+    $('age-v').textContent = opts.age ? opts.age + ' 年' : '新品';
+    $('r-age').textContent = opts.age ? `${opts.age}年 · ${Math.round(cfg.age.dropRate * 60)}回/分` : '新品';
+  }
+
+  // ---------- chart ----------
+  const W = 760, H = 380, L = 56, R = 14, T = 26, B = 34, FMIN = 20, FMAX = 20000;
+  const fx = (f) => L + (Math.log10(f / FMIN) / Math.log10(FMAX / FMIN)) * (W - L - R);
+  const freqs = Array.from({ length: 360 }, (_, i) => FMIN * Math.pow(FMAX / FMIN, i / 359));
+  const mono = 'Share Tech Mono, monospace';
+  const clampY = (y) => Math.min(H - B, Math.max(T, y));
+  function pathF(fs, vals, yf) { let d = ''; vals.forEach((v, i) => { d += (d ? 'L' : 'M') + fx(fs[i]).toFixed(1) + ' ' + clampY(yf(v)).toFixed(1); }); return d; }
+  function freqGrid(g, grid, gs, muted) {
+    [20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 20000].forEach((f) => {
+      const strong = [100, 1000, 10000].includes(f);
+      g.push(`<line x1="${fx(f)}" y1="${T}" x2="${fx(f)}" y2="${H - B}" stroke="${strong ? gs : grid}" stroke-width="${strong ? 1 : 0.7}"/>`);
+    });
+    const lab = { 20: '20', 50: '50', 100: '100', 200: '200', 500: '500', 1000: '1k', 2000: '2k', 5000: '5k', 10000: '10k', 20000: '20k' };
+    Object.entries(lab).forEach(([f, t]) => g.push(`<text x="${fx(+f)}" y="${H - B + 16}" fill="${muted}" font-size="12" text-anchor="middle" font-family="${mono}">${t}</text>`));
+    g.push(`<text x="${W - R}" y="${H - 3}" fill="${muted}" font-size="11" text-anchor="end" font-family="${mono}">Hz</text>`);
+  }
+  function dbGrid(g, yf, ymin, ymax, step, grid, gs, muted) {
+    for (let v = ymin; v <= ymax; v += step) {
+      g.push(`<line x1="${L}" y1="${yf(v)}" x2="${W - R}" y2="${yf(v)}" stroke="${v === 0 ? gs : grid}" stroke-width="${v === 0 ? 1.2 : 0.7}"/>`);
+      if (v % 10 === 0) g.push(`<text x="${L - 8}" y="${yf(v) + 4}" fill="${muted}" font-size="12" text-anchor="end" font-family="${mono}">${v > 0 ? '+' + v : v}</text>`);
+    }
+    g.push(`<text x="${L - 8}" y="${T - 10}" fill="${muted}" font-size="11" text-anchor="end" font-family="${mono}">dB</text>`);
+  }
+
+  let drift = null; // random drift table (shared with audio)
+  function devAt(t) {
+    // tape speed deviation (fraction) at time t, matching the audio modulators
+    const w = cfg.wow, f = cfg.flutter;
+    let d = w.peak * Math.cos(2 * Math.PI * w.hz * t) + f.peak * Math.cos(2 * Math.PI * f.hz * t);
+    if (drift) {
+      const n = drift.dev.length, i = Math.floor(((t % drift.period) + drift.period) % drift.period * drift.rate) % n;
+      d += cfg.random.rms * drift.dev[i];
+    }
+    return d;
+  }
+
+  function draw() {
+    const view = radio('view');
+    $('legend-fr').hidden = view !== 'fr';
+    $('legend-wf').hidden = view !== 'wf';
+    $('legend-corr').hidden = view !== 'corr';
+    const grid = css('--grid'), gs = css('--grid-strong'), muted = css('--muted'), fl = css('--fl');
+    const g = [];
+    let series = '';
+    if (view === 'fr') {
+      const yf = (v) => T + ((6 - v) / (6 - -36)) * (H - T - B);
+      freqGrid(g, grid, gs, muted);
+      dbGrid(g, yf, -36, 6, 6, grid, gs, muted);
+      const other = CASSETTE.config({ ...cfg.opts, player: cfg.opts.player === 'budget' ? 'premium' : 'budget' });
+      series += `<path d="${pathF(freqs, freqs.map((f) => CASSETTE.responseDb(other, f)), yf)}" fill="none" stroke="${muted}" stroke-width="1.3" stroke-dasharray="5 4"/>`;
+      series += `<path d="${pathF(freqs, freqs.map((f) => CASSETTE.monoDb(cfg, f)), yf)}" fill="none" stroke="${css('--amber')}" stroke-width="1.4"/>`;
+      series += `<path d="${pathF(freqs, freqs.map((f) => CASSETTE.responseDb(cfg, f)), yf)}" fill="none" stroke="${fl}" stroke-width="2.6" stroke-linejoin="round"/>`;
+    } else if (view === 'wf') {
+      const span = 4, now = playing && ctx ? ctx.currentTime - t0 : span;
+      const lim = Math.max(0.1, Math.ceil(cfg.wfPct * 3.6 / 0.05) * 0.05 || 0.1);
+      const yf = (v) => T + ((lim - v) / (2 * lim)) * (H - T - B);
+      const xs = (t) => L + (t / span) * (W - L - R);
+      for (let s = 0; s <= span; s += 0.5) {
+        g.push(`<line x1="${xs(s)}" y1="${T}" x2="${xs(s)}" y2="${H - B}" stroke="${s % 1 ? grid : gs}" stroke-width="0.8"/>`);
+        if (s % 1 === 0) g.push(`<text x="${xs(s)}" y="${H - B + 16}" fill="${muted}" font-size="12" text-anchor="middle" font-family="${mono}">${s - span}s</text>`);
+      }
+      const steps = [-lim, -lim / 2, 0, lim / 2, lim];
+      steps.forEach((v) => {
+        g.push(`<line x1="${L}" y1="${yf(v)}" x2="${W - R}" y2="${yf(v)}" stroke="${v === 0 ? gs : grid}" stroke-width="${v === 0 ? 1.2 : 0.7}"/>`);
+        g.push(`<text x="${L - 8}" y="${yf(v) + 4}" fill="${muted}" font-size="12" text-anchor="end" font-family="${mono}">${v > 0 ? '+' : ''}${v.toFixed(2)}</text>`);
+      });
+      g.push(`<text x="${L - 8}" y="${T - 10}" fill="${muted}" font-size="11" text-anchor="end" font-family="${mono}">%</text>`);
+      let d = '', pk = 0;
+      for (let i = 0; i <= 600; i++) {
+        const t = (i / 600) * span, v = devAt(now - span + t) * 100;
+        pk = Math.max(pk, Math.abs(v));
+        d += (i ? 'L' : 'M') + xs(t).toFixed(1) + ' ' + clampY(yf(v)).toFixed(1);
+      }
+      series = `<path d="${d}" fill="none" stroke="${fl}" stroke-width="2" stroke-linejoin="round"/>`;
+      const cents = 1200 * Math.log2(1 + pk / 100);
+      series += `<text x="${W - R}" y="${T - 8}" fill="${fl}" font-size="14" text-anchor="end" font-family="${mono}">PEAK ±${pk.toFixed(3)}%  ≈ ±${cents.toFixed(1)} cent</text>`;
+    } else {
+      const yf = (v) => T + ((15 - v) / 35) * (H - T - B);
+      freqGrid(g, grid, gs, muted);
+      dbGrid(g, yf, -20, 15, 5, grid, gs, muted);
+      if (!corrData) {
+        series = `<text x="${(L + W - R) / 2}" y="${(T + H - B) / 2 - 6}" fill="${muted}" font-size="14" text-anchor="middle">補正ファイルを読み込むと、測定・補正・補正後の予測を表示します</text>
+          <text x="${(L + W - R) / 2}" y="${(T + H - B) / 2 + 16}" fill="${muted}" font-size="12" text-anchor="middle">左の「サンプルを試す」で動作を確認できます</text>`;
+      } else {
+        g.unshift(`<rect x="${L}" y="${T}" width="${Math.max(0, fx(corrOpt.fLo) - L)}" height="${H - T - B}" fill="${css('--shade')}"/>`,
+          `<rect x="${fx(corrOpt.fHi)}" y="${T}" width="${Math.max(0, W - R - fx(corrOpt.fHi))}" height="${H - T - B}" fill="${css('--shade')}"/>`);
+        const cf = CORR.grid, idx = cf.map((f, i) => i).filter((i) => cf[i] >= FMIN && cf[i] <= FMAX), fs = idx.map((i) => cf[i]);
+        if (corrData.meas) {
+          series += `<path d="${pathF(fs, idx.map((i) => corrData.meas[i]), yf)}" fill="none" stroke="${muted}" stroke-width="1.4" stroke-dasharray="4 3"/>`;
+          series += `<path d="${pathF(fs, idx.map((i) => corrData.meas[i] + corrData.corr[i]), yf)}" fill="none" stroke="${css('--ink')}" stroke-width="1.4"/>`;
+        }
+        series += `<path d="${pathF(fs, idx.map((i) => corrData.corr[i]), yf)}" fill="none" stroke="${css('--corr')}" stroke-width="2.6"/>`;
+      }
+    }
+    $('chart').innerHTML = `<rect x="${L}" y="${T}" width="${W - L - R}" height="${H - T - B}" fill="none" stroke="${gs}"/>` + g.join('') + series;
+    $('chart').setAttribute('aria-label', { fr: '周波数特性グラフ', wf: 'テープ速度偏差グラフ', corr: '再生補正グラフ' }[view]);
+  }
+  document.querySelectorAll('input[name=view]').forEach((el) => el.addEventListener('change', draw));
+
+  // ---------- playback correction ----------
+  let corrSrc = null, corrData = null, corrTimer = null;
+  const corrOpt = { maxBoost: 4, fLo: 40, fHi: 16000, smoothing: 'var' };
+  const fmtHz = (f) => f >= 1000 ? (f / 1000).toFixed(f >= 10000 ? 1 : 2) + ' kHz' : Math.round(f) + ' Hz';
+  const KIND = { measurement: 'REW測定', filters: 'パラメトリックEQ', graphic: 'GraphicEQ' };
+  function setStatus(text, cls) { const el = $('corr-status'); el.textContent = text; el.className = 'corr-status ' + (cls || ''); }
+  function readCorr() {
+    corrOpt.maxBoost = +$('corr-boost').value;
+    corrOpt.fLo = Math.pow(10, +$('corr-lo').value);
+    corrOpt.fHi = Math.pow(10, +$('corr-hi').value);
+    corrOpt.smoothing = $('corr-smooth').value;
+    $('corr-boost-v').textContent = '+' + corrOpt.maxBoost.toFixed(1) + ' dB';
+    $('corr-lo-v').textContent = fmtHz(corrOpt.fLo);
+    $('corr-hi-v').textContent = fmtHz(corrOpt.fHi);
+  }
+  function updateCorr() {
+    readCorr();
+    if (corrSrc) {
+      corrData = CORR.build(corrSrc.parsed, corrOpt);
+      const n = corrSrc.parsed.kind === 'filters' ? corrSrc.parsed.filters.length + 'バンド' : corrSrc.parsed.points.length.toLocaleString() + '点';
+      setStatus(`${corrSrc.name} — ${KIND[corrSrc.parsed.kind]} ${n}／ヘッドルーム −${corrData.headroom.toFixed(1)} dB を自動確保`, 'ok');
+    }
+    $('corr-smooth').disabled = !corrSrc || corrSrc.parsed.kind !== 'measurement';
+    draw();
+    clearTimeout(corrTimer);
+    corrTimer = setTimeout(applyCorr, 120);
+  }
+  function loadCorrText(text, name) {
+    try {
+      corrSrc = { parsed: CORR.parse(text), name };
+      $('corr-set').disabled = false;
+      $('corr-on').checked = true;
+      $('v-corr').checked = true;
+      updateCorr();
+    } catch (e) {
+      setStatus(`${name} は読み込めません。REWの「Export measurement as text」、AutoEQの ParametricEQ.txt / GraphicEQ.txt を選んでください。`, 'err');
+    }
+  }
+  $('corr-file').addEventListener('change', async (e) => { const f = e.target.files[0]; if (f) loadCorrText(await f.text(), f.name); e.target.value = ''; });
+  $('corr-sample').addEventListener('click', () => loadCorrText(CORR.sampleText(), 'サンプル（合成データ：小型ブックシェルフ＋部屋）'));
+  ['corr-boost', 'corr-lo', 'corr-hi'].forEach((id) => $(id).addEventListener('input', updateCorr));
+  $('corr-smooth').addEventListener('change', updateCorr);
+  document.querySelectorAll('input[name=corr]').forEach((el) => el.addEventListener('change', () => applyCorr()));
+
+  // ---------- audio graph ----------
+  let ctx = null, playing = false, t0 = 0, src = null, pinkBuf = null, toneBuf = null, fileBuf = null;
+  let mediaEl = null, mediaNode = null, fileMode = null, fileUrl = null, seeking = false;
+  const N = {}; // nodes
+
+  function biquad(spec) {
+    const b = ctx.createBiquadFilter();
+    setBiquad(b, spec);
+    return b;
+  }
+  function setBiquad(b, s, now = ctx.currentTime) {
+    const map = { HP: 'highpass', LP: 'lowpass', PK: 'peaking', HS: 'highshelf', LS: 'lowshelf' };
+    b.type = map[s.type];
+    b.frequency.setTargetAtTime(s.fc, now, 0.02);
+    // Web Audio interprets lowpass/highpass Q in dB
+    const q = s.type === 'HP' || s.type === 'LP' ? 20 * Math.log10(s.q) : s.q;
+    b.Q.setTargetAtTime(q, now, 0.02);
+    b.gain.setTargetAtTime(s.gain || 0, now, 0.02);
+  }
+  function noiseBuffer(seconds, ch) {
+    const b = ctx.createBuffer(ch, ctx.sampleRate * seconds, ctx.sampleRate);
+    for (let c = 0; c < ch; c++) { const d = b.getChannelData(c); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.sqrt(3); }
+    return b;
+  }
+  function makePink() {
+    const sr = ctx.sampleRate, n = sr * 8, buf = ctx.createBuffer(2, n, sr);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = buf.getChannelData(ch);
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < n; i++) {
+        const w = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + w * 0.0555179; b1 = 0.99332 * b1 + w * 0.0750759; b2 = 0.969 * b2 + w * 0.153852;
+        b3 = 0.8665 * b3 + w * 0.3104856; b4 = 0.55 * b4 + w * 0.5329522; b5 = -0.7616 * b5 - w * 0.016898;
+        d[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + w * 0.5362; b6 = w * 0.115926;
+      }
+      // normalise to 6 dB below Dolby level (rms)
+      let s = 0; for (let i = 0; i < n; i++) s += d[i] * d[i];
+      const k = Math.pow(10, (CASSETTE.REF_DBFS - 6) / 20) / Math.sqrt(s / n);
+      for (let i = 0; i < n; i++) d[i] *= k;
+    }
+    return buf;
+  }
+  function makeTone() {
+    // 3150 Hz at Dolby level, whole cycles so the loop is seamless
+    const sr = ctx.sampleRate, cycles = 3150, n = sr, buf = ctx.createBuffer(2, n, sr), a = Math.pow(10, CASSETTE.REF_DBFS / 20) * Math.SQRT2;
+    for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = a * Math.sin((2 * Math.PI * cycles * i) / n); }
+    return buf;
+  }
+
+  function ensureCtx() {
+    if (ctx) return;
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    N.input = ctx.createGain();                       // everything the source feeds
+    N.input.channelCount = 2; N.input.channelCountMode = 'explicit'; N.input.channelInterpretation = 'speakers'; // mono → L+R
+    N.dry = ctx.createGain(); N.wet = ctx.createGain();
+    N.master = ctx.createGain(); N.master.gain.value = 0;
+    N.input.connect(N.dry); N.dry.connect(N.master);
+
+    // record side: level → (undecoded Dolby lift) → pre-emphasis → tanh → de-emphasis
+    N.rec = ctx.createGain();
+    N.bright = biquad({ type: 'HS', fc: 2500, gain: 0, q: 0.707 });
+    N.pre = biquad(CASSETTE.EMPHASIS);  // gain set per tape in applyModel
+    N.satIn = ctx.createGain();
+    N.shaper = ctx.createWaveShaper();
+    const curve = new Float32Array(4096);
+    for (let i = 0; i < curve.length; i++) { const u = (i / (curve.length - 1)) * 2 - 1; curve[i] = Math.tanh(4 * u); }
+    N.shaper.curve = curve; N.shaper.oversample = '4x';
+    N.satOut = ctx.createGain();
+    N.de = biquad({ ...CASSETTE.EMPHASIS, gain: -CASSETTE.EMPHASIS.gain });
+    N.mix = ctx.createGain();
+    // dbx compander: encoder on the record side, decoder after playback EQ
+    N.dbx = CASSETTE.buildDbx(ctx, 0.9 * Math.pow(10, CASSETTE.REF_DBFS / 20));
+    // Dolby B / C / S: one compander pair per system, chained; only the selected one is active
+    const aRef = 0.9 * Math.pow(10, CASSETTE.REF_DBFS / 20);
+    N.dolby = {};
+    Object.keys(CASSETTE.NR).forEach((k) => { N.dolby[k] = CASSETTE.buildDolby(ctx, aRef, k); });
+    const dk = Object.keys(N.dolby);
+    N.input.connect(N.rec); N.rec.connect(N.dbx.enc.input);
+    let encTail = N.dbx.enc.output;
+    dk.forEach((k) => { encTail.connect(N.dolby[k].enc.input); encTail = N.dolby[k].enc.output; });
+    encTail.connect(N.bright);
+    // meter taps: record level, before the tape saturates
+    N.mSplit = ctx.createChannelSplitter(2);
+    N.anL = ctx.createAnalyser(); N.anR = ctx.createAnalyser();
+    N.anL.fftSize = N.anR.fftSize = 2048;
+    N.rec.connect(N.mSplit); N.mSplit.connect(N.anL, 0); N.mSplit.connect(N.anR, 1); N.bright.connect(N.pre); N.pre.connect(N.satIn);
+    N.satIn.connect(N.shaper); N.shaper.connect(N.satOut); N.satOut.connect(N.de); N.de.connect(N.mix);
+
+    // tape hiss
+    N.hissSrc = ctx.createBufferSource(); N.hissSrc.buffer = noiseBuffer(8, 2); N.hissSrc.loop = true;
+    N.hissHP = biquad({ type: 'HP', fc: 250, q: 0.707 });
+    N.hissNR = biquad({ type: 'HS', fc: 1500, gain: 0, q: 0.707 });   // spare tone stage (NR now acts dynamically on tape)
+    N.hissGain = ctx.createGain();
+    N.hissSrc.connect(N.hissHP); N.hissHP.connect(N.hissNR); N.hissNR.connect(N.hissGain); N.hissGain.connect(N.mix);
+
+    // transport: wow & flutter as a modulated delay line
+    N.wf = ctx.createDelay(0.05); N.wf.delayTime.value = 0.006;
+    N.mix.connect(N.wf);
+    drift = drift || CASSETTE.randomDrift();
+    const db = ctx.createBuffer(1, drift.tau.length, drift.rate); db.copyToChannel(drift.tau, 0);
+    N.oscWow = ctx.createOscillator(); N.oscWow.frequency.value = 0.6;
+    N.oscFl = ctx.createOscillator();
+    N.rnd = ctx.createBufferSource(); N.rnd.buffer = db; N.rnd.loop = true;
+    N.gWow = ctx.createGain(); N.gFl = ctx.createGain(); N.gRnd = ctx.createGain();
+    N.oscWow.connect(N.gWow); N.oscFl.connect(N.gFl); N.rnd.connect(N.gRnd);
+    [N.gWow, N.gFl, N.gRnd].forEach((g) => g.connect(N.wf.delayTime));
+
+    // head azimuth: right channel lags
+    N.split = ctx.createChannelSplitter(2); N.merge = ctx.createChannelMerger(2);
+    N.az = ctx.createDelay(0.01);
+    // ageing: dropouts (gain dip + HF loss) and oxide wear (HF shelf + level)
+    N.drop = ctx.createGain();
+    N.dropLP = biquad({ type: 'LP', fc: Math.min(22000, ctx.sampleRate / 2 - 100), q: 0.707 });
+    N.ageShelf = biquad({ type: 'HS', fc: 5000, gain: 0, q: 0.707 });
+    N.ageLevel = ctx.createGain();
+    N.wf.connect(N.drop); N.drop.connect(N.dropLP); N.dropLP.connect(N.ageShelf); N.ageShelf.connect(N.ageLevel);
+    // print-through: the adjacent wrap prints a faint, band-limited post-echo
+    N.prHP = biquad({ type: 'HP', fc: 200, q: 0.707 }); N.prLP = biquad({ type: 'LP', fc: 3500, q: 0.707 });
+    N.prDelay = ctx.createDelay(2.5); N.prDelay.delayTime.value = 1.8; N.prGain = ctx.createGain(); N.prGain.gain.value = 0;
+    N.de.connect(N.prHP); N.prHP.connect(N.prLP); N.prLP.connect(N.prDelay); N.prDelay.connect(N.prGain); N.prGain.connect(N.mix);
+    N.ageLevel.connect(N.split); N.split.connect(N.merge, 0, 0); N.split.connect(N.az, 1); N.az.connect(N.merge, 0, 1);
+
+    // playback response
+    N.eq = [0, 1, 2, 3].map(() => biquad({ type: 'PK', fc: 1000, gain: 0, q: 1 }));
+    N.merge.connect(N.eq[0]); for (let i = 0; i < 3; i++) N.eq[i].connect(N.eq[i + 1]);
+    let decTail = N.eq[3];
+    dk.forEach((k) => { decTail.connect(N.dolby[k].dec.input); decTail = N.dolby[k].dec.output; });
+    decTail.connect(N.dbx.dec.input); N.dbx.dec.output.connect(N.wet); N.wet.connect(N.master);
+
+    // playback correction after the A/B mix
+    N.corrBypass = ctx.createGain(); N.corrWet = ctx.createGain(); N.corrWet.gain.value = 0;
+    N.corrConv = ctx.createConvolver(); N.corrConv.normalize = false;
+    N.master.connect(N.corrBypass); N.corrBypass.connect(ctx.destination);
+    N.master.connect(N.corrConv); N.corrConv.connect(N.corrWet); N.corrWet.connect(ctx.destination);
+
+    // streaming file player
+    mediaEl = new Audio(); mediaEl.loop = true; mediaEl.preload = 'auto';
+    mediaNode = ctx.createMediaElementSource(mediaEl); mediaNode.connect(N.input);
+    mediaEl.addEventListener('timeupdate', showTime); mediaEl.addEventListener('durationchange', showTime);
+
+    setInterval(scheduleDrops, 150);
+    t0 = ctx.currentTime + 0.05;
+    [N.oscWow, N.oscFl, N.rnd, N.hissSrc].forEach((s) => s.start(t0));
+    applyModel(true);
+    setAB();
+    applyCorr();
+  }
+
+  function applyModel(immediate) {
+    if (!ctx) return;
+    const now = immediate ? 0 : ctx.currentTime;
+    const c = cfg;
+    N.rec.gain.setTargetAtTime(c.recGain, now, 0.03);
+    N.dbx.enc.set(c.dbxEnc, now); N.dbx.dec.set(c.dbxDec, now);
+    Object.keys(N.dolby).forEach((k) => { N.dolby[k].enc.set(c.nr === k, now); N.dolby[k].dec.set(c.nr === k && c.decode, now); });
+    setBiquad(N.pre, { ...CASSETTE.EMPHASIS, gain: c.tape.emph }, now);
+    setBiquad(N.de, { ...CASSETTE.EMPHASIS, gain: -c.tape.emph }, now);
+    setBiquad(N.ageShelf, c.age.shelf, now);
+    N.ageLevel.gain.setTargetAtTime(Math.pow(10, c.age.levelDb / 20), now, 0.05);
+    N.prGain.gain.setTargetAtTime(c.age.on ? Math.pow(10, c.age.printDb / 20) : 0, now, 0.05);
+    if (!c.age.on) clearDrops();
+    N.satIn.gain.setTargetAtTime(c.satA / 4, now, 0.03);
+    N.satOut.gain.setTargetAtTime(1 / c.satA, now, 0.03);
+    N.hissGain.gain.setTargetAtTime(Math.pow(10, c.hissDb / 20), now, 0.03);
+    N.oscFl.frequency.setTargetAtTime(c.flutter.hz, now, 0.05);
+    N.gWow.gain.setTargetAtTime(c.wow.peak / (2 * Math.PI * c.wow.hz), now, 0.05);
+    N.gFl.gain.setTargetAtTime(c.flutter.peak / (2 * Math.PI * c.flutter.hz), now, 0.05);
+    N.gRnd.gain.setTargetAtTime(c.random.rms, now, 0.05);
+    N.az.delayTime.setTargetAtTime(c.azDelay, now, 0.02);
+    c.eq.forEach((s, i) => setBiquad(N.eq[i], s, now));
+    // keep loudness constant while the record level drives saturation
+    N.wet.gain.setTargetAtTime((radio('ab') === 'dry' ? 0 : 1) / c.recGain, now, 0.03);
+  }
+  // dropouts are scheduled a little ahead as automation on the dropout gain and low-pass
+  let dropNext = 0;
+  const between = (r) => r[0] + Math.random() * (r[1] - r[0]);
+  function clearDrops() {
+    if (!ctx) return;
+    const now = ctx.currentTime, top = Math.min(22000, ctx.sampleRate / 2 - 100);
+    N.drop.gain.cancelScheduledValues(now); N.drop.gain.setTargetAtTime(1, now, 0.01);
+    N.dropLP.frequency.cancelScheduledValues(now); N.dropLP.frequency.setTargetAtTime(top, now, 0.01);
+    dropNext = 0;
+  }
+  function scheduleDrops() {
+    if (!ctx || !cfg.age.on || !playing) { dropNext = 0; return; }
+    const a = cfg.age, now = ctx.currentTime, top = Math.min(22000, ctx.sampleRate / 2 - 100);
+    const gap = () => -Math.log(1 - Math.random()) / a.dropRate;
+    if (dropNext < now) dropNext = now + 0.05 + gap();
+    while (dropNext < now + 0.4) {
+      const t = dropNext, dur = between(a.dropDur);
+      N.drop.gain.setTargetAtTime(Math.pow(10, -between(a.dropDepth) / 20), t, 0.004);
+      N.drop.gain.setTargetAtTime(1, t + dur, 0.012);
+      N.dropLP.frequency.setTargetAtTime(1200 + Math.random() * 2800, t, 0.004);
+      N.dropLP.frequency.setTargetAtTime(top, t + dur, 0.015);
+      dropNext = t + dur + gap();
+    }
+  }
+
+  function setAB() {
+    if (!ctx) return;
+    const dry = radio('ab') === 'dry', now = ctx.currentTime;
+    N.dry.gain.setTargetAtTime(dry ? 1 : 0, now, 0.015);
+    N.wet.gain.setTargetAtTime(dry ? 0 : 1 / cfg.recGain, now, 0.015);
+  }
+  let corrSwap = null;
+  function applyCorr() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    clearTimeout(corrSwap);
+    if (!corrData || !$('corr-on').checked) {
+      N.corrWet.gain.setTargetAtTime(0, now, 0.015); N.corrBypass.gain.setTargetAtTime(1, now, 0.015); return;
+    }
+    const ir = CORR.impulse(corrData, ctx.sampleRate);
+    const buf = ctx.createBuffer(1, ir.length, ctx.sampleRate); buf.copyToChannel(ir, 0);
+    N.corrWet.gain.setTargetAtTime(0, now, 0.01); N.corrBypass.gain.setTargetAtTime(0, now, 0.01);
+    corrSwap = setTimeout(() => { N.corrConv.buffer = buf; N.corrWet.gain.setTargetAtTime(1, ctx.currentTime, 0.015); }, 60);
+  }
+
+  // ---------- transport ----------
+  const fmtT = (t) => {
+    if (!isFinite(t)) return '--:--';
+    const s = Math.floor(t % 60), m = Math.floor(t / 60) % 60, hh = Math.floor(t / 3600);
+    return (hh ? hh + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+  };
+  function showTime() {
+    if (!mediaEl) return;
+    const d = mediaEl.duration;
+    $('time').textContent = `${fmtT(mediaEl.currentTime)} / ${fmtT(d)}`;
+    if (!seeking && isFinite(d) && d > 0) $('seek').value = Math.round((mediaEl.currentTime / d) * 1000);
+  }
+  const srcMode = () => radio('src');
+  function showSeek() { $('seekwrap').hidden = !(fileMode === 'media' && srcMode() === 'file'); }
+  $('seek').addEventListener('input', () => { seeking = true; if (mediaEl && isFinite(mediaEl.duration)) $('time').textContent = `${fmtT(($('seek').value / 1000) * mediaEl.duration)} / ${fmtT(mediaEl.duration)}`; });
+  $('seek').addEventListener('change', () => { if (mediaEl && isFinite(mediaEl.duration)) mediaEl.currentTime = ($('seek').value / 1000) * mediaEl.duration; seeking = false; });
+
+  function currentBuffer() {
+    const m = srcMode();
+    if (m === 'file' && fileMode === 'buffer' && fileBuf) return fileBuf;
+    if (m === 'tone') return toneBuf || (toneBuf = makeTone());
+    return pinkBuf || (pinkBuf = makePink());
+  }
+  function start() {
+    ensureCtx();
+    ctx.resume();
+    stopSource();
+    if (srcMode() === 'file' && fileMode === 'media') {
+      mediaEl.play().catch(() => { $('srcname').textContent = '再生を開始できません。もう一度「再生」を押してください'; stop(); });
+    } else {
+      src = ctx.createBufferSource(); src.buffer = currentBuffer(); src.loop = true; src.connect(N.input); src.start();
+    }
+    N.master.gain.setTargetAtTime(+$('vol').value, ctx.currentTime, 0.03);
+    playing = true; $('play').textContent = '■ 停止'; $('play').classList.add('on');
+    tick();
+  }
+  function stopSource() {
+    if (src) { try { src.stop(); } catch (e) {} src.disconnect(); src = null; }
+    if (mediaEl) mediaEl.pause();
+  }
+  function stop() {
+    stopSource();
+    if (ctx) N.master.gain.setTargetAtTime(0, ctx.currentTime, 0.03);
+    playing = false; $('play').textContent = '▶ 再生'; $('play').classList.remove('on');
+  }
+  function tick() {
+    if (!playing) return;
+    if (radio('view') === 'wf') draw();
+    requestAnimationFrame(tick);
+  }
+  $('play').addEventListener('click', () => (playing ? stop() : start()));
+  $('vol').addEventListener('input', () => { if (ctx && playing) N.master.gain.setTargetAtTime(+$('vol').value, ctx.currentTime, 0.02); });
+  document.querySelectorAll('input[name=ab]').forEach((el) => el.addEventListener('change', setAB));
+  document.querySelectorAll('input[name=src]').forEach((el) => el.addEventListener('change', () => {
+    if (srcMode() === 'file' && !fileMode) { $('src-pink').checked = true; $('file').click(); return; }
+    showSeek();
+    if (playing) start();
+  }));
+
+  async function loadFile(file) {
+    if (!file) return;
+    ensureCtx();
+    stop();
+    $('srcname').textContent = '読み込み中…';
+    if (fileUrl) URL.revokeObjectURL(fileUrl);
+    fileUrl = URL.createObjectURL(file);
+    const ok = await new Promise((resolve) => {
+      let timer;
+      const done = (v) => { clearTimeout(timer); mediaEl.removeEventListener('canplay', yes); mediaEl.removeEventListener('error', no); resolve(v); };
+      const yes = () => done(true), no = () => done(false);
+      mediaEl.addEventListener('canplay', yes); mediaEl.addEventListener('error', no);
+      timer = setTimeout(() => done(false), 15000);
+      mediaEl.src = fileUrl; mediaEl.load();
+    });
+    if (ok) { fileMode = 'media'; fileBuf = null; finishLoad(file.name); return; }
+    mediaEl.removeAttribute('src'); mediaEl.load();
+    try {
+      fileBuf = await ctx.decodeAudioData(await file.arrayBuffer());
+      fileMode = 'buffer';
+      finishLoad(file.name);
+    } catch (e) {
+      const mb = file.size / 1048576;
+      $('srcname').textContent = mb > 60
+        ? `読み込めません（${mb.toFixed(0)} MB）。このブラウザでは長いファイルを展開しきれませんでした。分割するか、GitHub版／ローカル版で開いてください`
+        : 'このファイルは読み込めません。WAV / MP3 / FLAC / AAC などの音声ファイルを選んでください';
+      fileMode = null; fileBuf = null; $('src-pink').checked = true; showSeek();
+    }
+  }
+  function finishLoad(name) {
+    $('srcname').textContent = name; $('src-file').checked = true; $('seek').value = 0;
+    showSeek(); showTime(); start();
+  }
+  $('file').addEventListener('change', (e) => loadFile(e.target.files[0]));
+  window.addEventListener('dragover', (e) => e.preventDefault());
+  window.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files[0];
+    if (!f) return;
+    if (/\.(txt|csv)$/i.test(f.name)) loadCorrText(await f.text(), f.name); else loadFile(f);
+  });
+
+  // ---------- analog level meters ----------
+  // 0 dB on both meters = Dolby level (CASSETTE.REF_DBFS rms; a sine at that level reads 0 on both).
+  // VU: needle proportional to voltage like a real VU movement (0 dB at 71 % of the swing, +3 dB at full).
+  // PEAK: dB-linear scale from -20 to +8 dB, as on the peak meters of better decks.
+  const REF_RMS = Math.pow(10, CASSETTE.REF_DBFS / 20), REF_PK = REF_RMS * Math.SQRT2, FULL = Math.pow(10, 3 / 20);
+  const SWEEP = (47 * Math.PI) / 180;
+  const SCALES = {
+    vu: { toP: (db) => Math.pow(10, db / 20) / FULL, marks: [-20, -10, -7, -5, -3, -2, -1, 0, 1, 2, 3], minor: [-9, -8, -6, -4], pct: true },
+    peak: { toP: (db) => (db + 20) / 28, marks: [-20, -15, -10, -6, -3, 0, 3, 5, 8], minor: [-18, -16, -14, -12, -8, -4, -2, -1, 1, 2, 4, 6, 7], pct: false },
+  };
+  const meters = ['l', 'r'].map((ch) => ({ ch, cv: $('meter-' + ch), face: null, key: '', p: 0, v: 0, pkDb: -60, lamp: 0 }));
+  const tbuf = new Float32Array(2048);
+
+  function geom(w, h) { return { cx: w / 2, cy: h * 1.08, r: h * 0.86 }; }
+  function drawFace(m, w, h, dpr, mode) {
+    const off = document.createElement('canvas');
+    off.width = Math.round(w * dpr); off.height = Math.round(h * dpr);
+    const g = off.getContext('2d'); g.scale(dpr, dpr);
+    const { cx, cy, r } = geom(w, h);
+    // lamp-lit face
+    const bg = g.createRadialGradient(cx, h * 0.95, h * 0.1, cx, h * 0.7, w * 0.75);
+    bg.addColorStop(0, '#fbe7b0'); bg.addColorStop(0.55, '#efcf83'); bg.addColorStop(1, '#b8893f');
+    g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    const ang = (p) => -SWEEP + 2 * SWEEP * p;
+    const pt = (p, rr) => [cx + rr * Math.sin(ang(p)), cy - rr * Math.cos(ang(p))];
+    const ink = '#1d1a14', red = '#b3261b';
+    const S = SCALES[mode], toP = S.toP;
+    // scale arcs: black up to 0 dB, red above
+    const arc = (p0, p1, rr, col, lw) => { g.beginPath(); g.strokeStyle = col; g.lineWidth = lw; g.arc(cx, cy, rr, -Math.PI / 2 + ang(p0), -Math.PI / 2 + ang(p1)); g.stroke(); };
+    const rs = r * 0.8;
+    arc(toP(-20), toP(0), rs, ink, Math.max(1, h * 0.008));
+    arc(toP(0), 1, rs, red, Math.max(3, h * 0.03));
+    // dB ticks and labels
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const fs = Math.max(9, h * 0.075);
+    S.marks.forEach((db) => {
+      const p = toP(db), [x0, y0] = pt(p, rs), [x1, y1] = pt(p, rs + h * 0.06);
+      g.beginPath(); g.strokeStyle = db > 0 ? red : ink; g.lineWidth = Math.max(1, h * 0.009); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      const [tx, ty] = pt(p, rs + h * 0.12);
+      g.fillStyle = db > 0 ? red : ink;
+      g.font = `600 ${fs}px "Saira Condensed", "Arial Narrow", sans-serif`;
+      g.fillText(db > 0 ? '+' + db : String(Math.abs(db)), tx, ty);
+    });
+    // minor ticks, and (VU only) the % modulation scale under the arc
+    for (const db of S.minor) {
+      const p = toP(db), [x0, y0] = pt(p, rs), [x1, y1] = pt(p, rs + h * 0.03);
+      g.beginPath(); g.strokeStyle = ink; g.lineWidth = 1; g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+    }
+    g.font = `500 ${Math.max(8, h * 0.055)}px "Saira Condensed", "Arial Narrow", sans-serif`;
+    (S.pct ? [0, 20, 40, 60, 80, 100] : []).forEach((pc) => {
+      const p = (pc / 100) / FULL, [x0, y0] = pt(Math.max(p, 0.001), rs), [x1, y1] = pt(Math.max(p, 0.001), rs - h * 0.035);
+      g.beginPath(); g.strokeStyle = ink; g.lineWidth = 1; g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+      const [tx, ty] = pt(Math.max(p, 0.001), rs - h * 0.09);
+      g.fillStyle = 'rgba(29,26,20,0.75)'; g.fillText(String(pc), tx, ty);
+    });
+    // legends
+    g.fillStyle = ink;
+    g.font = `700 ${Math.max(12, h * 0.11)}px "Saira Condensed", "Arial Narrow", sans-serif`;
+    g.fillText(mode === 'vu' ? 'VU' : 'PEAK', cx, h * 0.7);
+    g.font = `600 ${Math.max(9, h * 0.07)}px "Saira Condensed", "Arial Narrow", sans-serif`;
+    g.textAlign = 'left'; g.fillText(m.ch.toUpperCase(), h * 0.07, h * 0.12);
+    g.textAlign = 'right'; g.fillStyle = 'rgba(29,26,20,0.6)'; g.fillText('dB', w - h * 0.07, h * 0.12);
+    // pivot cover
+    g.fillStyle = '#16191b';
+    g.beginPath(); g.ellipse(cx, h * 1.02, w * 0.2, h * 0.17, 0, Math.PI, 0); g.fill();
+    g.fillStyle = '#2a2f33'; g.fillRect(0, h * 0.94, w, h * 0.06);
+    // inner shadow of the bezel
+    const vg = g.createLinearGradient(0, 0, 0, h);
+    vg.addColorStop(0, 'rgba(0,0,0,0.28)'); vg.addColorStop(0.12, 'rgba(0,0,0,0)'); vg.addColorStop(0.85, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.25)');
+    g.fillStyle = vg; g.fillRect(0, 0, w, h);
+    return off;
+  }
+
+  function renderMeter(m, mode) {
+    const cv = m.cv, dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (!w || !h) return;
+    const key = `${w}x${h}@${dpr}:${mode}`;
+    if (m.key !== key) {
+      cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+      m.face = drawFace(m, w, h, dpr, mode); m.key = key;
+    }
+    const g = cv.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.drawImage(m.face, 0, 0);
+    g.scale(dpr, dpr);
+    const { cx, cy, r } = geom(w, h);
+    const a = -SWEEP + 2 * SWEEP * Math.min(1.06, Math.max(-0.02, m.p));
+    const tip = r * 0.97, base = r * 0.18;
+    const line = (dx, dy, col, lw) => {
+      g.beginPath(); g.strokeStyle = col; g.lineWidth = lw; g.lineCap = 'round';
+      g.moveTo(cx + base * Math.sin(a) + dx, cy - base * Math.cos(a) + dy);
+      g.lineTo(cx + tip * Math.sin(a) + dx, cy - tip * Math.cos(a) + dy); g.stroke();
+    };
+    line(h * 0.02, h * 0.025, 'rgba(60,40,10,0.28)', Math.max(1.5, h * 0.014)); // shadow on the face
+    line(0, 0, '#141210', Math.max(1.2, h * 0.011));
+    // PEAK lamp
+    const on = m.lamp > performance.now();
+    const lx = w - h * 0.16, ly = h * 0.27, lr = Math.max(4, h * 0.035);
+    if (on) { const gl = g.createRadialGradient(lx, ly, 0, lx, ly, lr * 4); gl.addColorStop(0, 'rgba(255,70,40,0.65)'); gl.addColorStop(1, 'rgba(255,70,40,0)'); g.fillStyle = gl; g.fillRect(lx - lr * 4, ly - lr * 4, lr * 8, lr * 8); }
+    g.beginPath(); g.arc(lx, ly, lr, 0, Math.PI * 2); g.fillStyle = on ? '#ff4a2e' : '#6b2a20'; g.fill();
+    g.font = `600 ${Math.max(8, h * 0.05)}px "Saira Condensed", "Arial Narrow", sans-serif`;
+    g.fillStyle = 'rgba(29,26,20,0.7)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('PEAK', lx, ly + lr + Math.max(7, h * 0.045));
+    // glass glare
+    const gl2 = g.createLinearGradient(0, 0, w, h);
+    gl2.addColorStop(0, 'rgba(255,255,255,0.18)'); gl2.addColorStop(0.35, 'rgba(255,255,255,0)');
+    g.fillStyle = gl2; g.fillRect(0, 0, w, h);
+  }
+
+  let lastT = performance.now();
+  function meterLoop(now) {
+    const dt = Math.min(0.05, (now - lastT) / 1000); lastT = now;
+    const mode = radio('meter');
+    const live = playing && ctx;
+    meters.forEach((m, i) => {
+      let pk = 0, ms = 0;
+      if (live) {
+        (i ? N.anR : N.anL).getFloatTimeDomainData(tbuf);
+        for (let k = 0; k < tbuf.length; k++) { const v = tbuf[k]; ms += v * v; const a = Math.abs(v); if (a > pk) pk = a; }
+        ms /= tbuf.length;
+      }
+      const pkDbInst = 20 * Math.log10(Math.max(1e-6, pk / REF_PK));
+      if (live && pkDbInst > cfg.tape.mol) m.lamp = now + 600;
+      let target, wn, zeta;
+      if (mode === 'vu') {
+        target = SCALES.vu.toP(20 * Math.log10(Math.max(1e-6, Math.sqrt(ms) / REF_RMS))); wn = 19; zeta = 0.8;          // 300 ms, ~1.5 % overshoot
+      } else {
+        m.pkDb = Math.max(pkDbInst, m.pkDb - 13 * dt);                        // fast rise, ~13 dB/s fall
+        target = Math.max(-0.02, SCALES.peak.toP(m.pkDb)); wn = 70; zeta = 0.55;                           // quick, slightly springy needle
+      }
+      // spring–damper needle, integrated in 1 ms steps
+      const steps = Math.max(1, Math.round(dt / 0.001)), h = dt / steps;
+      for (let s = 0; s < steps; s++) {
+        m.v += (wn * wn * (target - m.p) - 2 * zeta * wn * m.v) * h;
+        m.p += m.v * h;
+        if (m.p < -0.02) { m.p = -0.02; m.v = -m.v * 0.3; }                  // rest peg
+        if (m.p > 1.06) { m.p = 1.06; m.v = -m.v * 0.3; }                    // end peg
+      }
+      renderMeter(m, mode);
+    });
+    requestAnimationFrame(meterLoop);
+  }
+  document.querySelectorAll('input[name=meter]').forEach((el) => el.addEventListener('change', () => meters.forEach((m) => { m.key = ''; m.pkDb = -60; })));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => meters.forEach((m) => { m.key = ''; }));
+  requestAnimationFrame(meterLoop);
+
+  // ---------- controls ----------
+  function update() { readControls(); draw(); applyModel(false); }
+  ['rec', 'wfs', 'hiss'].forEach((id) => $(id).addEventListener('input', update));
+  $('age').addEventListener('input', update);
+  document.querySelectorAll('input[name=player], input[name=tape], input[name=nr], input[name=ddec], input[name=aged]').forEach((el) => el.addEventListener('change', update));
+  $('reset').addEventListener('click', () => {
+    $('m-peak').checked = true; meters.forEach((m) => { m.key = ''; });
+    $('p-budget').checked = true; $('t-1').checked = true; $('aged-off').checked = true; $('age').value = 30; $('dt-off').checked = true; $('dd-on').checked = true;
+    $('rec').value = 0; $('wfs').value = 1; $('hiss').value = 0;
+    update();
+  });
+
+  drift = CASSETTE.randomDrift();
+  readCorr();
+  readControls();
+  draw();
+})();
+</script>
+</body>
+</html>

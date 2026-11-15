@@ -46,11 +46,10 @@ body {
 .wrap { max-width: 1180px; margin: 0 auto; display: grid; gap: 18px; }
 header { display: flex; flex-wrap: wrap; align-items: end; gap: 6px 24px; border-bottom: 1px solid var(--rule); padding-bottom: 14px; }
 .mark { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 4.4vw, 40px); letter-spacing: 0.06em; line-height: 1; margin: 0; text-transform: uppercase; }
-.mark span { color: var(--fl); }
-.mark small { display: block; font-size: 0.36em; letter-spacing: 0.32em; color: var(--muted); font-weight: 500; margin-top: 6px; }
+.mark small { display: block; font-family: var(--font-body); font-size: 0.4em; letter-spacing: 0.04em; text-transform: none; color: var(--muted); font-weight: 500; margin-top: 8px; }
 header p { margin: 0; color: var(--muted); max-width: 64ch; text-wrap: pretty; }
 
-.lbl { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+.lbl { font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; }
 button, .seg span, .filebtn {
   font: inherit; font-size: 13px; color: var(--ink); background: var(--chip); border: 1px solid var(--rule);
   border-radius: 3px; padding: 6px 12px; cursor: pointer; line-height: 1.3;
@@ -99,11 +98,37 @@ select { font: inherit; font-size: 13px; color: var(--ink); background: var(--ch
 @media (max-width: 880px) { .deck-sec { grid-template-columns: minmax(0, 1fr); } }
 .cass-wrap { display: grid; gap: 8px; min-width: 0; }
 #cass { display: block; width: 100%; max-width: 100%; aspect-ratio: 1.58 / 1; border-radius: 6px; background: #0b0d0e; }
-.counter { display: flex; align-items: baseline; gap: 10px; font-family: var(--font-mono); color: var(--fl); background: #0d1011; border: 1px solid var(--rule); border-radius: 3px; padding: 6px 12px; text-shadow: 0 0 6px rgba(95, 239, 208, 0.35); }
-.c-side { font-size: 22px; border: 1px solid var(--fl); border-radius: 2px; padding: 0 6px; line-height: 1.2; }
-.c-time { font-size: 26px; }
-.c-len { font-size: 14px; color: var(--muted); text-shadow: none; }
-.c-mode { margin-left: auto; font-size: 14px; letter-spacing: 0.12em; }
+/* Counter: a fluorescent display tube behind smoked glass. Every legend and segment is printed on the
+   tube; unlit ones show faintly, as they do on a real deck. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.fl {
+  --fl-off: rgba(95, 239, 208, 0.085);
+  position: relative; display: grid; gap: 6px; padding: 10px 14px 9px;
+  background: radial-gradient(120% 140% at 50% 0%, #0f1a1a 0%, #070b0b 70%);
+  border: 1px solid #000; border-radius: 4px;
+  box-shadow: inset 0 0 0 1px #262c2e, inset 0 6px 14px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.05);
+  font-family: var(--font-display); font-weight: 600; color: var(--fl-off); line-height: 1; user-select: none;
+}
+.fl::after {                                   /* reflection on the glass */
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(170deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0) 38%);
+}
+.fl .on { color: var(--fl); text-shadow: 0 0 4px rgba(95, 239, 208, 0.75), 0 0 12px rgba(95, 239, 208, 0.35); }
+.fl-row { display: flex; align-items: center; gap: 12px; font-size: 12px; letter-spacing: 0.08em; }
+.fl-row i { font-style: normal; }
+.fl-dir { display: inline-flex; gap: 2px; font-size: 13px; }
+.fl-modes { display: inline-flex; gap: 10px; }
+.fl-main { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.fl-side { display: grid; gap: 3px; font-size: 15px; text-align: center; }
+.fl-side i { font-style: normal; border: 1.5px solid currentColor; border-radius: 2px; padding: 1px 4px 2px; }
+#fl-digits { display: block; height: 46px; width: auto; justify-self: start; overflow: visible; }
+#fl-digits .seg-off { fill: var(--fl-off); }
+#fl-digits .seg-on { fill: var(--fl); filter: drop-shadow(0 0 2px rgba(95, 239, 208, 0.8)); }
+.fl-len { font-size: 13px; letter-spacing: 0.04em; align-self: end; padding-bottom: 4px; color: rgba(95, 239, 208, 0.55); }
+.fl-tape { display: inline-flex; gap: 9px; }
+.fl-nr { display: inline-flex; gap: 6px; margin-left: auto; }
+@media (prefers-reduced-motion: reduce) { .fl .on { text-shadow: none; } #fl-digits .seg-on { filter: none; } }
+@media (max-width: 420px) { .fl-row { gap: 8px; font-size: 10.5px; } .fl-tape { gap: 6px; } #fl-digits { height: 40px; } }
 .c-track { font-size: 13px; color: var(--muted); min-height: 1.6em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .deck-ctl { display: grid; gap: 12px; min-width: 0; }
 .tbtns { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -137,7 +162,7 @@ select { font: inherit; font-size: 13px; color: var(--ink); background: var(--ch
 .main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 18px; align-items: start; }
 @media (max-width: 880px) { .main { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 4px; padding: 16px; display: grid; gap: 18px; }
-.panel h2 { font-family: var(--font-display); font-weight: 600; font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.panel h2 { font-weight: 700; font-size: 15px; color: var(--ink); margin: 0 0 8px; }
 .deck { display: grid; gap: 8px; }
 .deck label { cursor: pointer; display: block; }
 .deck input { position: absolute; opacity: 0; pointer-events: none; }
@@ -188,33 +213,35 @@ th { font-weight: 500; color: var(--muted); font-size: 12px; }
 td.mono { font-family: var(--font-mono); white-space: nowrap; }
 .notes p { margin: 0; max-width: 78ch; color: var(--muted); font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .readout dd { text-shadow: none; } }
+@media (min-width: 881px) { .display { position: sticky; top: 16px; } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <h1 class="mark">Cassette <span>Deck</span> Simulator<small>Compact Cassette Playback Model</small></h1>
+    <h1 class="mark">Cassette Deck Simulator<small>カセットデッキ シミュレーター</small></h1>
     <p>手持ちの曲をカセットのA面・B面に収録して、テープの音で再生します。周波数特性、ワウ・フラッター、ヒス、飽和、ノイズリダクション、経年劣化まで再現し、原音と聴き比べられます。</p>
   </header>
 
   <section class="transport" aria-label="試聴">
     <div class="group">
+      <span class="lbl">音源</span>
+      <div class="seg" role="radiogroup" aria-label="音源">
+        <label><input type="radio" name="src" id="src-pink" value="pink" checked><span>ピンクノイズ</span></label>
+        <label><input type="radio" name="src" id="src-tone" value="tone"><span>3150Hz</span></label>
+        <label><input type="radio" name="src" id="src-file" value="tape"><span>収録した曲</span></label>
+      </div>
       <button id="play" type="button">▶ 再生</button>
-      <div class="seg ab" role="radiogroup" aria-label="比較">
-        <label><input type="radio" name="ab" id="ab-tape" value="tape" checked><span>カセット</span></label>
+    </div>
+    <div class="group">
+      <span class="lbl">聴く音</span>
+      <div class="seg ab" role="radiogroup" aria-label="テープの音と原音の比較">
+        <label><input type="radio" name="ab" id="ab-tape" value="tape" checked><span>テープの音</span></label>
         <label><input type="radio" name="ab" id="ab-dry" value="dry"><span>原音</span></label>
       </div>
     </div>
     <div class="group">
-      <span class="lbl">Source</span>
-      <div class="seg" role="radiogroup" aria-label="音源">
-        <label><input type="radio" name="src" id="src-pink" value="pink" checked><span>ピンクノイズ</span></label>
-        <label><input type="radio" name="src" id="src-tone" value="tone"><span>3150Hz</span></label>
-        <label><input type="radio" name="src" id="src-file" value="tape"><span>カセット</span></label>
-      </div>
-    </div>
-    <div class="group">
-      <label class="lbl" for="vol">Volume</label>
+      <label class="lbl" for="vol">音量</label>
       <input type="range" id="vol" min="0" max="1" step="0.01" value="0.5">
     </div>
   </section>
@@ -222,11 +249,22 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
   <section class="deck-sec" aria-label="カセット">
     <div class="cass-wrap">
       <canvas id="cass" role="img" aria-label="カセットテープの窓。リールの巻き量と回転を表示"></canvas>
-      <div class="counter" aria-live="off">
-        <span class="c-side" id="c-side">A</span>
-        <span class="c-time" id="c-time">0:00</span>
-        <span class="c-len" id="c-len">/ 30:00</span>
-        <span class="c-mode" id="c-mode">STOP</span>
+      <div class="fl" aria-live="off">
+        <span class="sr"><span id="c-side">A</span>面 <span id="c-time">0:00</span> <span id="c-mode">STOP</span></span>
+        <div class="fl-row" aria-hidden="true">
+          <span class="fl-dir"><i id="fl-rev">◀</i><i id="fl-fwd">▶</i></span>
+          <span class="fl-modes"><i id="fl-play">PLAY</i><i id="fl-search">SEARCH</i><i id="fl-stop">STOP</i></span>
+          <span class="fl-nr"><i id="fl-rmode">REVERSE</i></span>
+        </div>
+        <div class="fl-main" aria-hidden="true">
+          <span class="fl-side"><i id="fl-a">A</i><i id="fl-b">B</i></span>
+          <svg id="fl-digits" viewBox="-1 -1 70 25"></svg>
+          <span class="fl-len" id="c-len">/ 30:00</span>
+        </div>
+        <div class="fl-row" aria-hidden="true">
+          <span class="fl-tape"><i data-fl-tape="I">NORMAL</i><i data-fl-tape="II">CrO₂</i><i data-fl-tape="III">FeCr</i><i data-fl-tape="IV">METAL</i></span>
+          <span class="fl-nr"><i data-fl-nr="dolby">DOLBY NR</i><i data-fl-nr="dolby-b">B</i><i data-fl-nr="dolby-c">C</i><i data-fl-nr="dolby-s">S</i><i data-fl-nr="dbx">dbx</i></span>
+        </div>
       </div>
       <div class="c-track" id="c-track">曲を追加すると、A面から順に収録します</div>
     </div>
@@ -277,7 +315,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
 
   <section class="meters" aria-label="録音レベルメーター">
     <div class="meters-head">
-      <span class="lbl">Record Level</span>
+      <span class="lbl">録音レベル</span>
       <p id="meter-note">0 = ドルビーレベル（−6dBFS）。0dBFSのピークは+3を指します。PEAKランプは、テープの最大出力レベルを超えると点灯します。</p>
       <div class="seg" role="radiogroup" aria-label="メーターの種類">
         <label><input type="radio" name="meter" id="m-peak" value="peak" checked><span>PEAK</span></label>
@@ -293,7 +331,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
   <div class="main">
     <aside class="panel" aria-label="設定">
       <div>
-        <h2>Deck</h2>
+        <h2>機種</h2>
         <div class="deck" role="radiogroup" aria-label="機種">
           <label><input type="radio" name="player" id="p-budget" value="budget" checked><span><b>普及モデル</b><em>ラジカセ／ポータブル級・2ヘッド</em><i>W&amp;F 0.25% · アジマス 15′ · NRなし</i></span></label>
           <label><input type="radio" name="player" id="p-premium" value="premium"><span><b>高級モデル</b><em>3ヘッド・クローズドループ級</em><i>W&amp;F 0.04% · アジマス 2′ · Dolby B/C/S · dbx</i></span></label>
@@ -301,7 +339,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
       </div>
 
       <div class="rowc">
-        <h2 style="margin:0">Tape</h2>
+        <h2 style="margin:0">テープ</h2>
         <div class="stack">
           <span>テープ種類</span>
           <div class="seg grid c4" role="radiogroup" aria-label="テープ種類">
@@ -362,7 +400,7 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
       </div>
 
       <div class="corr">
-        <h2 style="margin:0">Playback Correction</h2>
+        <h2 style="margin:0">再生補正（ヘッドホン・スピーカー）</h2>
         <div class="row">
           <label class="filebtn">補正ファイルを読む<input type="file" id="corr-file" accept=".txt,.csv,text/plain"></label>
           <button type="button" id="corr-sample">サンプルを試す</button>
@@ -1204,7 +1242,52 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
     return 0;
   }
   const MODE_LABEL = { stop: 'STOP', play: 'PLAY', cue: 'SEARCH' };
+  // ---------- FL display: 7-segment digits with every segment printed on the tube ----------
+  const SEGS = (() => {
+    const t = 2.3, g = 0.55, h = t / 2;
+    const H = (x, y, l) => `${x},${y} ${x + h},${y - h} ${x + l - h},${y - h} ${x + l},${y} ${x + l - h},${y + h} ${x + h},${y + h}`;
+    const V = (x, y, l) => `${x},${y} ${x + h},${y + h} ${x + h},${y + l - h} ${x},${y + l} ${x - h},${y + l - h} ${x - h},${y + h}`;
+    return { a: H(1 + g, 1, 10 - 2 * g), b: V(11, 1 + g, 10 - 2 * g), c: V(11, 11 + g, 10 - 2 * g), d: H(1 + g, 21, 10 - 2 * g),
+             e: V(1, 11 + g, 10 - 2 * g), f: V(1, 1 + g, 10 - 2 * g), g: H(1 + g, 11, 10 - 2 * g) };
+  })();
+  const DIGIT = { 0: 'abcdef', 1: 'bc', 2: 'abged', 3: 'abgcd', 4: 'fgbc', 5: 'afgcd', 6: 'afgedc', 7: 'abc', 8: 'abcdefg', 9: 'abcdfg', ' ': '' };
+  const CELL_X = [0, 15, 38, 53];                        // two minute digits, colon, two second digits
+  (() => {
+    let svg = '';
+    CELL_X.forEach((x, i) => {
+      svg += `<g transform="translate(${x} 0) skewX(-7)">` + Object.entries(SEGS).map(([k, pts]) => `<polygon data-c="${i}" data-s="${k}" class="seg-off" points="${pts}"/>`).join('') + '</g>';
+    });
+    svg += '<g transform="skewX(-7)"><rect id="fl-colon1" class="seg-off" x="31.5" y="6" width="2.4" height="2.4"/><rect id="fl-colon2" class="seg-off" x="30.3" y="14.6" width="2.4" height="2.4"/></g>';
+    $('fl-digits').innerHTML = svg;
+  })();
+  const flPolys = [...$('fl-digits').querySelectorAll('polygon')];
+  let flShown = '';
+  function flDigits(str) {                               // 'M:SS' or 'MM:SS'
+    const [m, sec] = str.split(':'), chars = (m.padStart(2, ' ') + sec).split('');
+    const key = chars.join('');
+    if (key === flShown) return;
+    flShown = key;
+    flPolys.forEach((p) => { p.setAttribute('class', DIGIT[chars[+p.dataset.c]].includes(p.dataset.s) ? 'seg-on' : 'seg-off'); });
+    ['fl-colon1', 'fl-colon2'].forEach((id) => $(id).setAttribute('class', 'seg-on'));
+  }
+  const lit = (id, on) => $(id).classList.toggle('on', !!on);
+  function updateFL() {
+    flDigits(DECK.fmt(deck.pos));
+    const moving = deck.mode !== 'stop';
+    lit('fl-play', deck.mode === 'play'); lit('fl-search', deck.mode === 'cue'); lit('fl-stop', deck.mode === 'stop');
+    lit('fl-fwd', moving && !deck.headRev); lit('fl-rev', moving && deck.headRev);
+    lit('fl-a', deck.side === 'A'); lit('fl-b', deck.side === 'B');
+    lit('fl-rmode', deck.reverse !== 'manual');
+    const tape = radio('tape'), nr = radio('nr');
+    document.querySelectorAll('[data-fl-tape]').forEach((el) => el.classList.toggle('on', el.dataset.flTape === tape));
+    document.querySelectorAll('[data-fl-nr]').forEach((el) => {
+      const k = el.dataset.flNr;
+      el.classList.toggle('on', k === nr || (k === 'dolby' && nr.startsWith('dolby')));
+    });
+  }
+  document.querySelectorAll('input[name=tape], input[name=nr], input[name=rev]').forEach((el) => el.addEventListener('change', () => setTimeout(updateFL, 0)));
   function updateCounter() {
+    updateFL();
     $('c-side').textContent = deck.side;
     $('c-time').textContent = DECK.fmt(deck.pos);
     $('c-len').textContent = `/ ${DECK.fmt(sideSec())}`;

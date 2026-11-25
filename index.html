@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="カセットテープ再生の音響特性（周波数特性・ワウフラッター・ヒス・飽和・アジマス）を再現する Web Audio シミュレーター">
 <title>カセットデッキ シミュレーター</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#141618">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@500;600;700&family=Share+Tech+Mono&family=IBM+Plex+Sans+JP:wght@400;500;700&family=Caveat:wght@600&family=Yomogi&display=swap">
@@ -1598,6 +1602,38 @@ td.mono { font-family: var(--font-mono); white-space: nowrap; }
   readCorr();
   readControls();
   draw();
+})();
+</script>
+<!-- Install as an app (PWA) -->
+<button id="pwa-install" type="button" hidden>アプリとしてインストール</button>
+<style>
+#pwa-install {
+  position: fixed; right: 16px; bottom: 16px; z-index: 9999;
+  padding: 10px 16px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 600 14px/1 system-ui, -apple-system, "Hiragino Sans", "Yu Gothic UI", sans-serif;
+  color: #fff; background: #2b6cb0; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+}
+#pwa-install:hover { background: #245a93; }
+@media print { #pwa-install { display: none !important; } }
+</style>
+<script>
+(() => {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+  const btn = document.getElementById('pwa-install');
+  const label = () => (document.documentElement.lang || '').startsWith('en') ? 'Install as app' : 'アプリとしてインストール';
+  let deferred = null;
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault(); deferred = e; btn.textContent = label(); btn.hidden = false;
+  });
+  btn.addEventListener('click', async () => {
+    if (!deferred) return;
+    btn.hidden = true; deferred.prompt();
+    try { await deferred.userChoice; } catch (_) {}
+    deferred = null;
+  });
+  window.addEventListener('appinstalled', () => { btn.hidden = true; deferred = null; });
 })();
 </script>
 </body>
